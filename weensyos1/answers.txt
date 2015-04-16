@@ -1,0 +1,182 @@
+Name: Cheyun Xia
+UCLA ID: 504422348
+
+Collaborators: N.A.
+
+-------------------------------------------------------------------------------
+
+Response to Exercise 1:
+
+After this line of code "current->p_registers.reg_eax = current->p_pid;", the running processing' pid is written into eax register. If it's followed by "run(current);" as in the original case, this process would continue running and the corresponding pid will be returned to the function call "static inline pid_t sys_getpid(void)". However, if "schedule();" replaces "run(current);", then next runnable process would be picked and run. If no other runnable process, after running a circle, this process itself would be picked and the same pid would be returned. However if there are other processes, then the pid would be a mismatched one.
+
+
+Response to Exercise 2:
+
+1) in mpos-kern.c line 280-292, inside the the do_fork() function, added code goes as below:
+	
+	//---------------------added code inside do_fork()--------------------
+	pid_t childpid = parent->p_pid+1;
+	while((proc_array[childpid].p_state!=P_EMPTY && childpid!=parent->p_pid ) || childpid==0){
+		childpid = (childpid+1)%NPROCS;
+	}
+	if(childpid==parent->p_pid)
+		return -1;
+	process_t *child = &proc_array[childpid];
+	child->p_pid = childpid;
+	child->p_registers = parent->p_registers;
+	child->p_registers.reg_eax = 0;
+	child->p_state = P_RUNNABLE;
+	copy_stack(child, parent);
+	return childpid;
+	//------------------------end of added code--------------------------
+
+2) in mpos.kern.c line line 351-359, inside the copy_stack() function, added code goes as below:
+
+	//--------------------added code inside copy_stack()------------------
+	src_stack_top = PROC1_STACK_ADDR + src->p_pid*PROC_STACK_SIZE; /* YOUR CODE HERE */;
+	src_stack_bottom = src->p_registers.reg_esp;
+	dest_stack_top = PROC1_STACK_ADDR + dest->p_pid*PROC_STACK_SIZE; /* YOUR CODE HERE */;
+	dest_stack_bottom = dest_stack_top + (src_stack_bottom - src_stack_top); /* YOUR CODE HERE: calculate based on the
+				 other variables */;
+	dest->p_registers.reg_esp = dest_stack_bottom;
+	dest->p_registers.reg_ebp = dest_stack_top;
+	// YOUR CODE HERE: memcpy the stack and set dest->p_registers.reg_esp
+	memcpy((void *)dest_stack_bottom, (void *)src_stack_bottom,src_stack_top-src_stack_bottom);
+	//----------------------------end of added code-----------------------
+
+
+Response to Exercise 3:
+
+1)since the process's state of P_BLOCKED has already been defined in mpos-kern.h in line 11, I added a pointer named queue inside the struct of process(in mpos-ken.h line 26) which points to the process waiting for this process till end.
+
+2)then in mpos-kern.c inside case INT_SYS_WAIT, originally, when the waited process is non-empty and non-zombia, WAIT_TRYAGAIN would be returned. Now I changed the currently waiting process's state to P_BLOCKED and the waited processed's queue pointer poited to the waiting process(line 198-201)
+
+3)now the waiting process can be blocked, we're goint to set it RUNNABLE when the waited process end, which is implemented in mpos-kern.c line 175-178.
+
+
+Response to Exercise 4:
+
+The bug is inside mpos-kern.c in the INT_SYS_EXIT case. When one case exits, its state hasn't been reset so that it can not be relaimed in do_fork() system call, so simply add a line in 179:
+	current->p_state = P_EMPTY;
+
+
+Anything else you'd like us to know:
+
+
+
+Extra credit exercises:
+
+Response to Exercise 5:
+
+Declare a volatile pointer ptr that points to the variable x, inside the if(p==0) block, which will be executed for child process, if we increment x, then the local viable x in child process will be incremented. If we increment the value ptr points to, if the process is well isolated, the local variable x in father process will not be incremented; if the process is not well isolated, the local variable x in father process will be incremented.  
+
+void start(void) {
+        int x = 0;  /* note that local variable x lives on the stack */
+        int* volatile ptr = &x;
+        pid_t p = sys_fork();
+        if (p == 0){//in child process, we need to modify x both in 2 processes
+        		x++; //this changes x in child process
+        		(*ptr)++;
+            }
+        else if (p > 0)
+                sys_wait(p); // assume blocking implementation
+        app_printf("%d", x); //child process will print first
+        sys_exit(0);
+}
+
+Response to Exercise 6:
+
+1)in mpos.h line 17, change INT_SYS_USER1 to INT_SYS_NEWTHREAD to indicate an interruption for creating a new thread-like process.
+
+2)in mpos-app.h line 165-182, add a system call to intrige INT_SYS_NEWTHREAD interruption. Store the start_function variable into eax register.
+
+	static inline pid_t
+	sys_newthread(void (*start_function)(void)){
+		pid_t retpid;
+		asm volatile("int %1\n"
+					:	"=a" (retpid)
+					:	"i" (INT_SYS_NEWTHREAD), "a" (start_function)
+					:	"cc", "memory");
+		return retpid;
+	}
+
+3)in mpos-kern.c, line 205-209, add a new case for INT_SYS_NEWTHREAD, actions will be taken in new_thread() function defined in 4)
+
+	case INT_SYS_NEWTHREAD: {
+		current->p_registers.reg_eax = new_thread(current);
+		run(current);
+	}
+
+4)also add a function named new_thread() which is largely like do_fork(), except that it has a different value of esp register.
+
+	static pid_t new_thread(process_t* parent){
+		pid_t childpid = parent->p_pid+1;
+		while((proc_array[childpid].p_state!=P_EMPTY && childpid!=parent->p_pid ) || childpid==0){
+			childpid = (childpid+1)%NPROCS;
+		}
+		if(childpid==parent->p_pid)
+			return -1;
+		process_t *child = &proc_array[childpid];
+		child->p_pid = childpid;
+		child->p_registers = parent->p_registers;
+		child->p_registers.reg_eax = 0;
+		child->p_registers.reg_eip = parent->p_registers.reg_eax;
+		child->p_state = P_RUNNABLE;
+		child->p_registers.reg_esp = PROC1_STACK_ADDR + child->p_pid*PROC_STACK_SIZE;
+		return childpid;
+	}
+
+
+Response to Exercise 7:
+
+1)in mpos.h line 18, define INT_SYS_KILL 18 as an indicator for a process killing interruption. And in line 32, define a new process's exit_status KILLED.
+
+2)in mpos-app.h line 184-198, add a new system call to let kernal handle INT_SYS_KILL interruption. The returned value is the indicator of action success or failure.
+
+	static inline int
+	sys_kill(pid_t pid){
+		int ret;
+		asm volatile("int %1\n"
+					:	"=a" (ret)
+					:	"i"  (INT_SYS_KILL), "a"  (pid)
+					:	"cc", "memory");
+		return ret;
+	}
+
+3)in mpos-kern.c line 211-231, add a new case of INT_SYS_KILL. In this case, if the process to be killed is valid, then marke its status P_EMPTY, and resume the process waiting for it.
+
+	case INT_SYS_KILL: {
+		pid_t kill_pid = current->p_registers.reg_eax;
+		process_t *ptoKill = &proc_array[kill_pid];
+		if (kill_pid<=0 || kill_pid >=NPROCS || kill_pid ==current->p_pid
+			|| ptoKill->p_state ==P_EMPTY)
+			current->p_registers.reg_eax = -1;
+		else if (ptoKill->p_state != P_ZOMBIE){
+			ptoKill->p_state = P_EMPTY;
+			ptoKill->p_exit_status = KILLED;
+
+			if(ptoKill->queue != NULL){
+				ptoKill->queue->p_state = P_RUNNABLE;
+				ptoKill->queue->p_registers.reg_eax = ptoKill->p_exit_status;
+			}
+			current->p_registers.reg_eax=0;
+		}
+		else{
+			current->p_registers.reg_eax=0;
+		}
+		run(current);
+	}
+
+4)and in mpos-app2.c inside run_child() function, add the code that kills processes with odd pid (line 64-70)
+
+	if(!(sys_getpid()%2) && NPROCS>2){
+		int kill_pid;
+		for (kill_pid = 3; kill_pid<NPROCS; kill_pid +=2 ){
+			sys_kill(kill_pid);
+		}
+	}
+
+
+//=============================================================================
+//====================THIS IS THE END OF ANSWER.TXT FILE=======================
+//=============================================================================
