@@ -186,7 +186,7 @@ schedule(void)
 {
   10008c:	83 ec 0c             	sub    $0xc,%esp
 	pid_t pid = current->p_pid;
-  10008f:	a1 08 9f 10 00       	mov    0x109f08,%eax
+  10008f:	a1 18 9f 10 00       	mov    0x109f18,%eax
 	while (1) {
 		pid = (pid + 1) % NPROCS;
   100094:	b9 10 00 00 00       	mov    $0x10,%ecx
@@ -204,11 +204,11 @@ schedule(void)
   10009f:	f7 f9                	idiv   %ecx
 		if (proc_array[pid].p_state == P_RUNNABLE)
   1000a1:	6b c2 54             	imul   $0x54,%edx,%eax
-  1000a4:	83 b8 a8 91 10 00 01 	cmpl   $0x1,0x1091a8(%eax)
+  1000a4:	83 b8 b8 91 10 00 01 	cmpl   $0x1,0x1091b8(%eax)
   1000ab:	75 ee                	jne    10009b <schedule+0xf>
 			run(&proc_array[pid]);
   1000ad:	83 ec 0c             	sub    $0xc,%esp
-  1000b0:	05 60 91 10 00       	add    $0x109160,%eax
+  1000b0:	05 70 91 10 00       	add    $0x109170,%eax
   1000b5:	50                   	push   %eax
   1000b6:	e8 75 03 00 00       	call   100430 <run>
 
@@ -243,7 +243,7 @@ interrupt(registers_t *reg)
 	// interrupt().  The first thing we must do, then, is copy the saved
 	// registers into the 'current' process descriptor.
 	current->p_registers = *reg;
-  1000c7:	8b 1d 08 9f 10 00    	mov    0x109f08,%ebx
+  1000c7:	8b 1d 18 9f 10 00    	mov    0x109f18,%ebx
 static pid_t do_fork(process_t *parent);
 static pid_t new_thread(process_t* parent);
 
@@ -317,7 +317,7 @@ interrupt(registers_t *reg)
 	pid_t childpid = parent->p_pid+1;
 	while((proc_array[childpid].p_state!=P_EMPTY && childpid!=parent->p_pid ) || childpid==0){
   100110:	6b c5 54             	imul   $0x54,%ebp,%eax
-  100113:	83 b8 a8 91 10 00 00 	cmpl   $0x0,0x1091a8(%eax)
+  100113:	83 b8 b8 91 10 00 00 	cmpl   $0x0,0x1091b8(%eax)
   10011a:	74 04                	je     100120 <interrupt+0x65>
   10011c:	39 cd                	cmp    %ecx,%ebp
   10011e:	75 e8                	jne    100108 <interrupt+0x4d>
@@ -343,7 +343,7 @@ interrupt(registers_t *reg)
 	if(childpid==parent->p_pid)
 		return -1;
 	process_t *child = &proc_array[childpid];
-  100138:	8d 82 60 91 10 00    	lea    0x109160(%edx),%eax
+  100138:	8d 82 70 91 10 00    	lea    0x109170(%edx),%eax
 	child->p_pid = childpid;
 	child->p_registers = parent->p_registers;
   10013e:	8d 78 04             	lea    0x4(%eax),%edi
@@ -361,7 +361,7 @@ interrupt(registers_t *reg)
 		return -1;
 	process_t *child = &proc_array[childpid];
 	child->p_pid = childpid;
-  100146:	89 aa 60 91 10 00    	mov    %ebp,0x109160(%edx)
+  100146:	89 aa 70 91 10 00    	mov    %ebp,0x109170(%edx)
 	// and then how to actually copy the stack.  (Hint: use memcpy.)
 	// We have done one for you.
 
@@ -441,7 +441,7 @@ interrupt(registers_t *reg)
   100182:	89 6b 20             	mov    %ebp,0x20(%ebx)
 		run(current);
   100185:	83 ec 0c             	sub    $0xc,%esp
-  100188:	ff 35 08 9f 10 00    	pushl  0x109f08
+  100188:	ff 35 18 9f 10 00    	pushl  0x109f18
   10018e:	e8 9d 02 00 00       	call   100430 <run>
 	case INT_SYS_YIELD:
 		// The 'sys_yield' system call asks the kernel to schedule a
@@ -456,7 +456,7 @@ interrupt(registers_t *reg)
 		// changed by now, but we can read the APPLICATION's setting
 		// for this register out of 'current->p_registers'.
 		current->p_state = P_ZOMBIE;
-  100198:	a1 08 9f 10 00       	mov    0x109f08,%eax
+  100198:	a1 18 9f 10 00       	mov    0x109f18,%eax
 		current->p_exit_status = current->p_registers.reg_eax;
 
 		if(current->queue != NULL){
@@ -504,7 +504,7 @@ interrupt(registers_t *reg)
 		// process to call sys_wait(P).)
 
 		pid_t p = current->p_registers.reg_eax;
-  1001c7:	a1 08 9f 10 00       	mov    0x109f08,%eax
+  1001c7:	a1 18 9f 10 00       	mov    0x109f18,%eax
   1001cc:	8b 50 20             	mov    0x20(%eax),%edx
 		if (p <= 0 || p >= NPROCS || p == current->p_pid
   1001cf:	8d 4a ff             	lea    -0x1(%edx),%ecx
@@ -514,7 +514,7 @@ interrupt(registers_t *reg)
   1001d9:	74 0d                	je     1001e8 <interrupt+0x12d>
 		    || proc_array[p].p_state == P_EMPTY)
   1001db:	6b d2 54             	imul   $0x54,%edx,%edx
-  1001de:	8b 8a a8 91 10 00    	mov    0x1091a8(%edx),%ecx
+  1001de:	8b 8a b8 91 10 00    	mov    0x1091b8(%edx),%ecx
 		// (In the Unix operating system, only process P's parent
 		// can call sys_wait(P).  In MiniprocOS, we allow ANY
 		// process to call sys_wait(P).)
@@ -539,14 +539,14 @@ interrupt(registers_t *reg)
   1001f1:	83 f9 03             	cmp    $0x3,%ecx
   1001f4:	75 0b                	jne    100201 <interrupt+0x146>
 			current->p_registers.reg_eax = proc_array[p].p_exit_status;
-  1001f6:	8b 92 ac 91 10 00    	mov    0x1091ac(%edx),%edx
+  1001f6:	8b 92 bc 91 10 00    	mov    0x1091bc(%edx),%edx
   1001fc:	89 50 20             	mov    %edx,0x20(%eax)
   1001ff:	eb 0d                	jmp    10020e <interrupt+0x153>
 		else{
 			current->p_state  = P_BLOCKED;
   100201:	c7 40 48 02 00 00 00 	movl   $0x2,0x48(%eax)
 			proc_array[p].queue = current;
-  100208:	89 82 b0 91 10 00    	mov    %eax,0x1091b0(%edx)
+  100208:	89 82 c0 91 10 00    	mov    %eax,0x1091c0(%edx)
 		}
 		schedule();
   10020e:	e8 79 fe ff ff       	call   10008c <schedule>
@@ -569,9 +569,9 @@ start(void)
 	memset(proc_array, 0, sizeof(proc_array));
   100219:	68 40 05 00 00       	push   $0x540
   10021e:	6a 00                	push   $0x0
-  100220:	68 60 91 10 00       	push   $0x109160
+  100220:	68 70 91 10 00       	push   $0x109170
   100225:	e8 42 03 00 00       	call   10056c <memset>
-  10022a:	ba 60 91 10 00       	mov    $0x109160,%edx
+  10022a:	ba 70 91 10 00       	mov    $0x109170,%edx
   10022f:	31 c0                	xor    %eax,%eax
   100231:	83 c4 10             	add    $0x10,%esp
 	for (i = 0; i < NPROCS; i++) {
@@ -602,7 +602,7 @@ start(void)
 
 	// The first process has process ID 1.
 	current = &proc_array[1];
-  100246:	c7 05 08 9f 10 00 b4 	movl   $0x1091b4,0x109f08
+  100246:	c7 05 18 9f 10 00 c4 	movl   $0x1091c4,0x109f18
   10024d:	91 10 00 
 
 	// Set up x86 hardware, and initialize the first process's
@@ -613,7 +613,7 @@ start(void)
   100250:	e8 73 00 00 00       	call   1002c8 <segments_init>
 	special_registers_init(current);
   100255:	83 ec 0c             	sub    $0xc,%esp
-  100258:	ff 35 08 9f 10 00    	pushl  0x109f08
+  100258:	ff 35 18 9f 10 00    	pushl  0x109f18
   10025e:	e8 e4 01 00 00       	call   100447 <special_registers_init>
 
 	// Erase the console, and initialize the cursor-position shared
@@ -644,7 +644,7 @@ start(void)
 	// Store its entry point into the first process's EIP
 	// (instruction pointer).
 	program_loader(whichprocess - 1, &current->p_registers.reg_eip);
-  10029a:	a1 08 9f 10 00       	mov    0x109f08,%eax
+  10029a:	a1 18 9f 10 00       	mov    0x109f18,%eax
   10029f:	83 c0 34             	add    $0x34,%eax
   1002a2:	52                   	push   %edx
   1002a3:	52                   	push   %edx
@@ -654,7 +654,7 @@ start(void)
 
 	// Set the main process's stack pointer, ESP.
 	current->p_registers.reg_esp = PROC1_STACK_ADDR + PROC_STACK_SIZE;
-  1002ab:	a1 08 9f 10 00       	mov    0x109f08,%eax
+  1002ab:	a1 18 9f 10 00       	mov    0x109f18,%eax
   1002b0:	c7 40 40 00 00 2c 00 	movl   $0x2c0000,0x40(%eax)
 
 	// Mark the process as runnable!
@@ -675,7 +675,7 @@ segments_init(void)
 
 	// Set task state segment
 	segments[SEGSEL_TASKSTATE >> 3]
-  1002c8:	b8 a0 96 10 00       	mov    $0x1096a0,%eax
+  1002c8:	b8 b0 96 10 00       	mov    $0x1096b0,%eax
 	kernel_task_descriptor.ts_ss0 = SEGSEL_KERN_DATA;
 
 	// Set up interrupt descriptor table.
@@ -721,7 +721,7 @@ segments_init(void)
 	// Most interrupts are effectively ignored
 	for (i = 0; i < sizeof(interrupt_descriptors) / sizeof(gatedescriptor_t); i++)
 		SETGATE(interrupt_descriptors[i], 0,
-  1002ef:	ba 08 97 10 00       	mov    $0x109708,%edx
+  1002ef:	ba 18 97 10 00       	mov    $0x109718,%edx
 segments_init(void)
 {
 	int i;
@@ -752,17 +752,17 @@ segments_init(void)
 
 	// Set up kernel task descriptor, so we can receive interrupts
 	kernel_task_descriptor.ts_esp0 = KERNEL_STACK_TOP;
-  100312:	c7 05 a4 96 10 00 00 	movl   $0x80000,0x1096a4
+  100312:	c7 05 b4 96 10 00 00 	movl   $0x80000,0x1096b4
   100319:	00 08 00 
 	kernel_task_descriptor.ts_ss0 = SEGSEL_KERN_DATA;
-  10031c:	66 c7 05 a8 96 10 00 	movw   $0x10,0x1096a8
+  10031c:	66 c7 05 b8 96 10 00 	movw   $0x10,0x1096b8
   100323:	10 00 
 
 	// Set up interrupt descriptor table.
 	// Most interrupts are effectively ignored
 	for (i = 0; i < sizeof(interrupt_descriptors) / sizeof(gatedescriptor_t); i++)
 		SETGATE(interrupt_descriptors[i], 0,
-  100325:	66 89 0c c5 08 97 10 	mov    %cx,0x109708(,%eax,8)
+  100325:	66 89 0c c5 18 97 10 	mov    %cx,0x109718(,%eax,8)
   10032c:	00 
   10032d:	66 c7 44 c2 02 08 00 	movw   $0x8,0x2(%edx,%eax,8)
   100334:	c6 44 c2 04 00       	movb   $0x0,0x4(%edx,%eax,8)
@@ -784,10 +784,10 @@ segments_init(void)
 	// (level-3) applications may generate these interrupts.
 	for (i = INT_SYS_GETPID; i < INT_SYS_GETPID + 10; i++)
 		SETGATE(interrupt_descriptors[i], 0,
-  10034f:	ba 08 97 10 00       	mov    $0x109708,%edx
+  10034f:	ba 18 97 10 00       	mov    $0x109718,%edx
   100354:	8b 0c 85 a3 ff 0f 00 	mov    0xfffa3(,%eax,4),%ecx
   10035b:	66 c7 44 c2 02 08 00 	movw   $0x8,0x2(%edx,%eax,8)
-  100362:	66 89 0c c5 08 97 10 	mov    %cx,0x109708(,%eax,8)
+  100362:	66 89 0c c5 18 97 10 	mov    %cx,0x109718(,%eax,8)
   100369:	00 
   10036a:	c1 e9 10             	shr    $0x10,%ecx
   10036d:	c6 44 c2 04 00       	movb   $0x0,0x4(%edx,%eax,8)
@@ -966,7 +966,7 @@ run(process_t *proc)
 {
   100430:	8b 44 24 04          	mov    0x4(%esp),%eax
 	current = proc;
-  100434:	a3 08 9f 10 00       	mov    %eax,0x109f08
+  100434:	a3 18 9f 10 00       	mov    %eax,0x109f18
 
 	asm volatile("movl %0,%%esp\n\t"
   100439:	83 c0 04             	add    $0x4,%eax
