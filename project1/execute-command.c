@@ -4,11 +4,13 @@
 #include "command-internals.h"
 
 #include <error.h>
+#include <stdio.h>
 
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <stdlib.h>
+
 
 int
 command_status (command_t c)
