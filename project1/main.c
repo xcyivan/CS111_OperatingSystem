@@ -1,11 +1,12 @@
 // UCLA CS 111 Lab 1 main program
 
 #include <errno.h>
-#include <error.h>
+// #include <error.h>
 #include <getopt.h>
 #include <stdio.h>
 
 #include "command.h"
+// #include "command_internals.h"
 
 static char const *program_name;
 static char const *script_name;
@@ -21,6 +22,7 @@ get_next_byte (void *stream)
 {
   return getc (stream);
 }
+
 
 int
 main (int argc, char **argv)
