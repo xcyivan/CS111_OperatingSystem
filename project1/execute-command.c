@@ -101,51 +101,93 @@ int exe_simple_command(command_t c, bool time_travel){
 }
 
 int exe_sequence_command(command_t c, bool time_travel){
-	pid_t p=fork();
-	if(p==0){//child process to exe the first command
+	pid_t p1=fork();
+	if(p1==0){//child process to exe the first command
 		execute_command(c->u.command[0], time_travel);
+		_exit(c->u.command[0]->status);
 	}
 	else{//parent process to exe to second command
-		execute_command(c->u.command[1], time_travel);
+		int status;
+		waitpid(p1,&status,0);
+		int exit_status=WEXITSTATUS(status);
+		c->status = exit_status; 
+		pid_t p2 = fork();
+		if (p2 == 0)
+		{
+			execute_command(c->u.command[1], time_travel);
+			_exit(c->u.command[1]->status);
+		}
+		else 
+		{
+			int status;
+			waitpid(p2,&status,0);
+			int exit_status=WEXITSTATUS(status);
+			c->status = exit_status;
+		}
+		
 	}
 	return 0;
 }
 
 int exe_and_command(command_t c, bool time_travel){
-	pid_t p=fork();
-	if(p==0){//child process to exe first command
+	pid_t p1=fork();
+	if(p1==0){//child process to exe first command
 		// sleep(15);
 		execute_command(c->u.command[0], time_travel);
 		_exit(c->u.command[0]->status);
 	}
 	else{//parent process wait child status to exe second command
 		int status;
-		waitpid(p,&status,0);
+		waitpid(p1,&status,0);
 		int exit_status=WEXITSTATUS(status);
 		c->status = exit_status; 
 		if(exit_status==0){
-			execute_command(c->u.command[1], time_travel);
-			_exit(c->u.command[1]->status);
+			pid_t p2 = fork();
+			if (p2 == 0)
+			{
+				execute_command(c->u.command[1], time_travel);
+				_exit(c->u.command[1]->status);
+			}
+			else
+			{
+				int status;
+				waitpid(p2,&status,0);
+				int exit_status=WEXITSTATUS(status);
+				c->status = exit_status; 
+			}
+			
 		}
+
 	}
 	return 0;
 }
 
 
 int exe_or_command(command_t c, bool time_travel){
-	pid_t p=fork();
-	if(p==0){//child process to exe first command
+	pid_t p1=fork();
+	if(p1==0){//child process to exe first command
 		execute_command(c->u.command[0], time_travel);
 		_exit(c->u.command[0]->status);
 	}
 	else{//parent process wait child status to exe second command
 		int status;
-		waitpid(p,&status,0);
+		waitpid(p1,&status,0);
 		int exit_status=WEXITSTATUS(status);
 		c->status = exit_status;
 		if(exit_status!=0){
-			execute_command(c->u.command[1], time_travel);
-			_exit(c->u.command[1]->status);
+			pid_t p2 = fork();
+			if (p2 == 0)
+			{
+				execute_command(c->u.command[1], time_travel);
+				_exit(c->u.command[1]->status);
+			}
+			else
+			{
+				int status;
+				waitpid(p2,&status,0);
+				int exit_status=WEXITSTATUS(status);
+				c->status = exit_status; 
+			}
 		}
 	}
 	return 0;
@@ -182,14 +224,40 @@ int exe_pipe_command(command_t c, bool time_travel){
 	if(firstpid==0){//in the first child process, exe the right command
 		close(fd[1]);
 		dup2(fd[0],0);
-		execute_command(right, time_travel);
+		pid_t p = fork();
+		if (p == 0)
+		{
+			execute_command(right, time_travel);
+			_exit(right->status);
+		}
+		else
+		{
+			int status;
+			waitpid(p, &status, 0);
+			int exit_status = WEXITSTATUS(status);
+			right->status = exit_status;
+		}
+		_exit(right->status);
 	}
 	else{
 		pid_t secondpid=fork();
 		if(secondpid==0){//in the second child process, exe the left command
 			close(fd[0]);
 			dup2(fd[1],1);
-			execute_command(left, time_travel);
+			pid_t p = fork();
+			if (p == 0)
+			{
+				execute_command(left, time_travel);
+				_exit(left->status);
+			}
+			else
+			{
+				int status;
+				waitpid(p, &status, 0);
+				int exit_status = WEXITSTATUS(status);
+				left->status = exit_status;
+			}
+			_exit(left->status);
 		}
 		else{//in the parent process
 			close(fd[0]);
@@ -198,9 +266,13 @@ int exe_pipe_command(command_t c, bool time_travel){
 			int returnedpid=waitpid(-1,&status, 0);
 			if(returnedpid==secondpid){
 				waitpid(firstpid,&status,0);
+				int exit_status = WEXITSTATUS(status);
+				c->status = exit_status;
 			}
 			if(returnedpid==firstpid){
 				waitpid(secondpid,&status,0);
+				int exit_status = WEXITSTATUS(status);
+				c->status = exit_status;
 			}
 		}
 	}
