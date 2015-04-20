@@ -28,6 +28,7 @@ int exe_and_command(command_t c, bool time_travel);
 int exe_or_command(command_t c, bool time_travel);
 int exe_pipe_command(command_t c,bool time_travel);
 int exe_subshell_command(command_t c, bool time_travel);
+int simple_command(command_t c, bool time_travel);
 
 void
 execute_command (command_t c, bool time_travel){
@@ -36,6 +37,7 @@ execute_command (command_t c, bool time_travel){
 		exit(1);
 	}
 
+	
 	switch(c->type){
 		case SIMPLE_COMMAND:
 			exe_simple_command(c, time_travel);
@@ -58,6 +60,8 @@ execute_command (command_t c, bool time_travel){
 		default:
 			fprintf(stderr,"Unknown command!\n");
 	}
+
+	// exit(exit_status);
 }
 
 int redirect(command_t c, bool time_travel){
@@ -74,6 +78,7 @@ int redirect(command_t c, bool time_travel){
 	return 0;
 }
 
+
 int exe_simple_command(command_t c, bool time_travel){
 	pid_t p=fork();
 	if(p==0){//child process
@@ -81,11 +86,8 @@ int exe_simple_command(command_t c, bool time_travel){
 			fprintf(stderr,"Cannot redirect the simple cammand\n");
 			return 1;
 		}
-		if(execvp(c->u.word[0],c->u.word)!=0){//if successful, child process would end here
-			fprintf(stderr,"Cannot execute simple command!\n");
-			// return 1;
-			exit(127);
-		}
+		execvp(c->u.word[0], c->u.word);
+		_exit(127);
 
 	}
 	else 
@@ -94,7 +96,6 @@ int exe_simple_command(command_t c, bool time_travel){
 		waitpid(p, &status, 0);
 		int exit_status = WEXITSTATUS(status);
 		c->status = exit_status;
-		// exit(0);
 	}
 	return 0;
 }
@@ -115,7 +116,7 @@ int exe_and_command(command_t c, bool time_travel){
 	if(p==0){//child process to exe first command
 		// sleep(15);
 		execute_command(c->u.command[0], time_travel);
-		exit(0);
+		_exit(c->u.command[0]->status);
 	}
 	else{//parent process wait child status to exe second command
 		int status;
@@ -124,6 +125,7 @@ int exe_and_command(command_t c, bool time_travel){
 		c->status = exit_status; 
 		if(exit_status==0){
 			execute_command(c->u.command[1], time_travel);
+			_exit(c->u.command[1]->status);
 		}
 	}
 	return 0;
@@ -134,7 +136,7 @@ int exe_or_command(command_t c, bool time_travel){
 	pid_t p=fork();
 	if(p==0){//child process to exe first command
 		execute_command(c->u.command[0], time_travel);
-		exit(127);
+		_exit(c->u.command[0]->status);
 	}
 	else{//parent process wait child status to exe second command
 		int status;
@@ -142,6 +144,7 @@ int exe_or_command(command_t c, bool time_travel){
 		int exitstatus=WEXITSTATUS(status);
 		if(exitstatus!=0){
 			execute_command(c->u.command[1], time_travel);
+			_exit(c->u.command[1]->status);
 		}
 	}
 	return 0;

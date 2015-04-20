@@ -1,5 +1,6 @@
-ls 
+#! /bin/sh
+cat sh.sh
 
-ls -l && ls && ls -a
+ls -l && ls .a&& ls -a
 
-ls1 -a || ls -l
+ls -a  || ls -l ./a || ls
