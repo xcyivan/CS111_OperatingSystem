@@ -73,7 +73,7 @@ makeSeparation(FILE* fp, Separation_t* m_separation, int (*get_next_byte) (void 
     //this if is to extract the subshell expressed as ()
     if(ch=='('){
       int badLine = countLine;
-      printf("enter subshell: badLine=%d\n",badLine);
+      // printf("enter subshell: badLine=%d\n",badLine);
       do{
         if(ch=='#'){
           while(ch!='\n' && ch!=EOF){

@@ -67,13 +67,25 @@ execute_command (command_t c, bool time_travel){
 int redirect(command_t c, bool time_travel){
 	if(c->input!=NULL){
 		int fd=open(c->input,O_RDONLY);
-		if(fd<0) return 1;//can't find a filedescriptor
-		if(dup2(fd,0)<0) return 1;//can't dup stdin to fd
+		if(fd<0)
+		{//can't find a filedescriptor
+			error(1,0,"Unable to open %s as input", c->input);
+		}
+		if(dup2(fd,0)<0)
+		{//can't dup stdin to fd
+			error(1,0,"Unable to dup2 %s as stdin", c->input);
+		}
 	}
 	if(c->output!=NULL){
 		int fd=open(c->output,O_CREAT|O_TRUNC|O_WRONLY,0644);
-		if(fd<0) return 1;//can't find a filedescriptor
-		if(dup2(fd,1)<0) return 1;//can't dup stdout to fd
+		if(fd<0)
+		{//can't find a filedescriptor
+			error(1, 0, "Unable to open %s as output", c->output);
+		}
+		if(dup2(fd,1)<0)
+		{//can't dup stdout to fd
+			error(1,0,"Unable to dup2 %s to stdout", c->output);
+		}
 	}
 	return 0;
 }
@@ -82,10 +94,7 @@ int redirect(command_t c, bool time_travel){
 int exe_simple_command(command_t c, bool time_travel){
 	pid_t p=fork();
 	if(p==0){//child process
-		if(redirect(c, time_travel)!=0){
-			fprintf(stderr,"Cannot redirect the simple cammand\n");
-			return 1;
-		}
+		redirect(c,time_travel);
 		execvp(c->u.word[0], c->u.word);
 		_exit(127);
 
@@ -197,10 +206,7 @@ int exe_subshell_command(command_t c, bool time_travel){
 	pid_t p = fork();
 	if (p == 0) 
 	{
-		if(redirect(c, time_travel)!=0){
-			fprintf(stderr,"Cannot redirect the subshell cammand\n");
-			return 1;
-		}
+		redirect(c,time_travel);
 		execute_command(c->u.subshell_command, time_travel);
 		_exit(c->u.subshell_command->status);
 	}
