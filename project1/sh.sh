@@ -1,6 +1,8 @@
 #! /bin/sh
 cat sh.sh
 
-ls -l && ls .a&& ls -a
+ls -l && (ls && ls -a ./a)
 
-ls -a  || ls -l ./a || ls
+ls -l   && ls -l  ./a|| ls
+
+

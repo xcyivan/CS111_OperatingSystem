@@ -55,7 +55,7 @@ execute_command (command_t c, bool time_travel){
 			exe_pipe_command(c, time_travel);
 			break;
 		case SUBSHELL_COMMAND:
-			exe_subshell_command(c->u.subshell_command, time_travel);
+			exe_subshell_command(c, time_travel);
 			break;
 		default:
 			fprintf(stderr,"Unknown command!\n");
@@ -141,8 +141,9 @@ int exe_or_command(command_t c, bool time_travel){
 	else{//parent process wait child status to exe second command
 		int status;
 		waitpid(p,&status,0);
-		int exitstatus=WEXITSTATUS(status);
-		if(exitstatus!=0){
+		int exit_status=WEXITSTATUS(status);
+		c->status = exit_status;
+		if(exit_status!=0){
 			execute_command(c->u.command[1], time_travel);
 			_exit(c->u.command[1]->status);
 		}
@@ -151,11 +152,23 @@ int exe_or_command(command_t c, bool time_travel){
 }
 
 int exe_subshell_command(command_t c, bool time_travel){
-	if(redirect(c, time_travel)!=0){
-		fprintf(stderr,"Cannot redirect the subshell cammand\n");
-		return 1;
+	pid_t p = fork();
+	if (p == 0) 
+	{
+		if(redirect(c, time_travel)!=0){
+			fprintf(stderr,"Cannot redirect the subshell cammand\n");
+			return 1;
+		}
+		execute_command(c->u.subshell_command, time_travel);
+		_exit(c->u.subshell_command->status);
 	}
-	execute_command(c->u.subshell_command, time_travel);
+	else
+	{
+		int status;
+		waitpid(p, &status, 0);
+		int exit_status = WEXITSTATUS(status);
+		c->status = exit_status;
+	}
 	return 0;
 }
 
