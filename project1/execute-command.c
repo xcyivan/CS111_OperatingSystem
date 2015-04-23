@@ -19,9 +19,6 @@ command_status (command_t c)
   return c->status;
 }
 
-
-// Not yet include the case starting with "exec"
-// int do_execute(command_t c);
 int redirect(command_t c, bool time_travel);
 int exe_simple_command(command_t c, bool time_travel);
 int exe_sequence_command(command_t c, bool time_travel);
@@ -32,13 +29,23 @@ int exe_subshell_command(command_t c, bool time_travel);
 int exe_exec_command(command_t c, bool time_travel);
 
 void
-execute_command (command_t c, bool time_travel){
+show_error (char *desc, char *desc2)
+{
+	if(desc2 == NULL)
+		fprintf (stderr, "error %s\n",  desc);
+	else
+		fprintf (stderr, "error %s \"%s\"\n", desc, desc2);
+	_exit (EXIT_FAILURE);
+}
+
+void 
+execute_command (command_t c, bool time_travel)
+{
 	if(time_travel){
 		fprintf(stderr, "Time Travel Mode is yet to be implemented, please try later!\n");
 		exit(1);
 	}
 
-	
 	switch(c->type){
 		case SIMPLE_COMMAND:
 			exe_simple_command(c, time_travel);
@@ -60,9 +67,7 @@ execute_command (command_t c, bool time_travel){
 			break;
 		default:
 			fprintf(stderr,"Unknown command!\n");
-	}
-
-	// exit(exit_status);
+	}	
 }
 
 int redirect(command_t c, bool time_travel){
@@ -91,150 +96,16 @@ int redirect(command_t c, bool time_travel){
 	return 0;
 }
 
-int exe_exec_command(command_t c, bool time_travel)
+int exe_simple_command(command_t c, bool time_travel)
 {
-	if (c->type == SIMPLE_COMMAND && !strcmp(c->u.word[0], "exec"))
-	{
-		execvp(c->u.word[1], &c->u.word[1]);
-		_exit(127);
-	}
-	else
-	{
-		return 0;
-	}
-}
-
-int exe_simple_command(command_t c, bool time_travel){
-	redirect(c,time_travel);
+	redirect(c, time_travel);
 	exe_exec_command(c, time_travel);
-	pid_t p=fork();
-	if(p==0){//child process
-		execvp(c->u.word[0], c->u.word);
-		_exit(127);
-
-	}
-	else 
-	{
-		int status;
-		waitpid(p, &status, 0);
-		int exit_status = WEXITSTATUS(status);
-		c->status = exit_status;
-	}
-	return 0;
-	
-}
-
-int exe_sequence_command(command_t c, bool time_travel){
-	exe_exec_command(c->u.command[0], time_travel);
-	pid_t p1=fork();
-	if(p1==0){//child process to exe the first command
-		execute_command(c->u.command[0], time_travel);
-		_exit(c->u.command[0]->status);
-	}
-	else{//parent process to exe to second command
-		int status;
-		waitpid(p1,&status,0);
-		int exit_status=WEXITSTATUS(status);
-		c->status = exit_status; 
-		exe_exec_command(c->u.command[1], time_travel);
-		pid_t p2 = fork();
-		if (p2 == 0)
-		{
-			execute_command(c->u.command[1], time_travel);
-			_exit(c->u.command[1]->status);
-		}
-		else 
-		{
-			int status;
-			waitpid(p2,&status,0);
-			int exit_status=WEXITSTATUS(status);
-			c->status = exit_status;
-		}
-		
-	}
-	return 0;
-}
-
-int exe_and_command(command_t c, bool time_travel){
-	// if (c->u.command[0]->type == SIMPLE_COMMAND && !strcmp(c->u.command[0]->u.word[0], "exec"))
-	// {
-	// 	execvp(c->u.command[0]->u.word[1], &c->u.command[0]->u.word[1]);
-	// 	_exit(127);
-	// }
-	exe_exec_command(c->u.command[0], time_travel);
-	pid_t p1=fork();
-	if(p1==0){//child process to exe first command
-		// sleep(15);
-		execute_command(c->u.command[0], time_travel);
-		_exit(c->u.command[0]->status);
-	}
-	else{//parent process wait child status to exe second command
-		int status;
-		waitpid(p1,&status,0);
-		int exit_status=WEXITSTATUS(status);
-		c->status = exit_status; 
-		if(exit_status==0){
-			exe_exec_command(c->u.command[1], time_travel);
-			pid_t p2 = fork();
-			if (p2 == 0)
-			{
-				execute_command(c->u.command[1], time_travel);
-				_exit(c->u.command[1]->status);
-			}
-			else
-			{
-				int status;
-				waitpid(p2,&status,0);
-				int exit_status=WEXITSTATUS(status);
-				c->status = exit_status; 
-			}
-			
-		}
-
-	}
-	return 0;
-}
-
-
-int exe_or_command(command_t c, bool time_travel){
-	exe_exec_command(c->u.command[0], time_travel);
-	pid_t p1=fork();
-	if(p1==0){//child process to exe first command
-		execute_command(c->u.command[0], time_travel);
-		_exit(c->u.command[0]->status);
-	}
-	else{//parent process wait child status to exe second command
-		int status;
-		waitpid(p1,&status,0);
-		int exit_status=WEXITSTATUS(status);
-		c->status = exit_status;
-		if(exit_status!=0){
-			exe_exec_command(c->u.command[1], time_travel);
-			pid_t p2 = fork();
-			if (p2 == 0)
-			{
-				execute_command(c->u.command[1], time_travel);
-				_exit(c->u.command[1]->status);
-			}
-			else
-			{
-				int status;
-				waitpid(p2,&status,0);
-				int exit_status=WEXITSTATUS(status);
-				c->status = exit_status; 
-			}
-		}
-	}
-	return 0;
-}
-
-int exe_subshell_command(command_t c, bool time_travel){
 	pid_t p = fork();
-	if (p == 0) 
+	if (p == 0)
 	{
-		redirect(c,time_travel);
-		execute_command(c->u.subshell_command, time_travel);
-		_exit(c->u.subshell_command->status);
+		execvp(c->u.word[0], c->u.word);
+		//show_error(c->line, "invalid", c->u.word[0]);
+		show_error("invalid", c->u.word[0]);
 	}
 	else
 	{
@@ -246,67 +117,104 @@ int exe_subshell_command(command_t c, bool time_travel){
 	return 0;
 }
 
-int exe_pipe_command(command_t c, bool time_travel){
+int exe_and_command(command_t c, bool time_travel)
+{
+	execute_command(c->u.command[0], time_travel);
+	c->status = c->u.command[0]->status;
+
+	if (c->u.command[0]->status == 0)
+	{
+		execute_command(c->u.command[1], time_travel);
+		c->status = c->u.command[1]->status;
+	}
+	return 0;
+}
+
+int exe_or_command(command_t c, bool time_travel)
+{
+	execute_command(c->u.command[0], time_travel);
+	c->status = c->u.command[0]->status;
+
+	if (c->u.command[0]->status != 0)
+	{
+		execute_command(c->u.command[1], time_travel);
+		c->status = c->u.command[1]->status;
+	}
+	
+	return 0;
+}
+
+int exe_sequence_command(command_t c, bool time_travel)
+{
+	execute_command(c->u.command[0], time_travel);
+	c->status = c->u.command[0]->status;
+
+	execute_command(c->u.command[1], time_travel);
+	c->status = c->u.command[1]->status;
+	return 0;
+}
+
+int exe_pipe_command(command_t c,bool time_travel)
+{	
 	int fd[2];
 	pipe(fd);
 	command_t left = c->u.command[0];
 	command_t right = c->u.command[1];
 
 	pid_t firstpid=fork();
-	if(firstpid==0){//in the first child process, exe the right command
+	if(firstpid==0){
 		close(fd[1]);
 		dup2(fd[0],0);
-		pid_t p = fork();
-		if (p == 0)
-		{
-			execute_command(right, time_travel);
-			_exit(right->status);
-		}
-		else
-		{
-			int status;
-			waitpid(p, &status, 0);
-			int exit_status = WEXITSTATUS(status);
-			right->status = exit_status;
-		}
+		execute_command(right, time_travel);
 		_exit(right->status);
 	}
 	else{
 		pid_t secondpid=fork();
-		if(secondpid==0){//in the second child process, exe the left command
+		if(secondpid==0){
 			close(fd[0]);
 			dup2(fd[1],1);
-			pid_t p = fork();
-			if (p == 0)
-			{
-				execute_command(left, time_travel);
-				_exit(left->status);
-			}
-			else
-			{
-				int status;
-				waitpid(p, &status, 0);
-				int exit_status = WEXITSTATUS(status);
-				left->status = exit_status;
-			}
+			execute_command(left,time_travel);
 			_exit(left->status);
 		}
-		else{//in the parent process
+		else{
 			close(fd[0]);
 			close(fd[1]);
 			int status;
-			int returnedpid=waitpid(-1,&status, 0);
+			int returnedpid=waitpid(-1,&status,0);
 			if(returnedpid==secondpid){
 				waitpid(firstpid,&status,0);
 				int exit_status = WEXITSTATUS(status);
 				c->status = exit_status;
 			}
 			if(returnedpid==firstpid){
-				waitpid(secondpid,&status,0);
+				waitpid(secondpid, &status, 0);
 				int exit_status = WEXITSTATUS(status);
 				c->status = exit_status;
 			}
 		}
 	}
+	//printf("%d\n",(int)getpid());
 	return 0;
+}
+
+int exe_subshell_command(command_t c, bool time_travel)
+{
+	redirect(c, time_travel);
+	execute_command(c->u.subshell_command, time_travel);
+	c->status = c->u.subshell_command->status;
+	return 0;
+}
+
+int exe_exec_command(command_t c, bool time_travel)
+{
+	if (c->type == SIMPLE_COMMAND && !strcmp(c->u.word[0], "exec"))
+	{
+		execvp(c->u.word[1], &c->u.word[1]);
+		//show_error(c->line, "invalid command", c->u.word[1]);
+		show_error("invalid command", c->u.word[1]);
+		// _exit(127);
+	}
+		
+	return 0;
+	
 }

@@ -5,7 +5,7 @@
 #include "alloc.h"
 #include "stack.h"
 
-#include <error.h>
+// #include <error.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -888,6 +888,7 @@ make_command(token_t *token_array, command_t* out_cmd)
           pop(operator_stack);
         }
         command_t sub_cmd = malloc(sizeof(struct command));
+        sub_cmd->line = token_array[0]->line_num;
         command_t subshell = (command_t)pop(command_stack);
         make_subshell_command(subshell, sub_cmd);
         push(sub_cmd, command_stack);
@@ -904,6 +905,7 @@ make_command(token_t *token_array, command_t* out_cmd)
           command_t cmd1 = (command_t)pop(command_stack);
           command_t new_cmd = malloc(sizeof(struct command));
           make_compound_command(cmd1, cmd2, oper, new_cmd);
+          new_cmd->line = token_array[0]->line_num;
           push(new_cmd, command_stack);
           if (!is_empty(operator_stack))
             oper = (char*)peer(operator_stack);
@@ -924,11 +926,13 @@ make_command(token_t *token_array, command_t* out_cmd)
         tokenize(token, sub_token_array, token_array[i]->line_num);
         command_t cmd[1];
         make_command(sub_token_array, cmd);
+        cmd[0]->line = token_array[0]->line_num;
         push(cmd[0], command_stack);
       }
       else
       {
         command_t cmd = malloc(sizeof(struct command));
+        cmd->line = token_array[0]->line_num;
         make_simple_command(token, cmd);
         push(cmd, command_stack);
       }
@@ -940,6 +944,7 @@ make_command(token_t *token_array, command_t* out_cmd)
   if (is_empty(operator_stack))
   {
     out_cmd[0] = (command_t)pop(command_stack);
+    out_cmd[0]->line = token_array[0]->line_num;
   } 
   else
   {
@@ -949,6 +954,7 @@ make_command(token_t *token_array, command_t* out_cmd)
       command_t cmd2 = (command_t)pop(command_stack);
       command_t cmd1 = (command_t)pop(command_stack);
       out_cmd[0] = malloc(sizeof(struct command));
+      out_cmd[0]->line = token_array[0]->line_num;
       make_compound_command(cmd1, cmd2, oper, out_cmd[0]);
       push(out_cmd[0], command_stack);
     }
@@ -976,6 +982,7 @@ make_commands (FILE* filename, int (*get_next_byte) (void *), command_t* res)
       token_t *token_array = malloc(sizeof(struct token)*128);
       tokenize(m_sp[i]->m_cmd, token_array, m_sp[i]->m_line);
       make_command(token_array, cmd);
+      cmd[0]->line = m_sp[i]->m_line;
       res[i] = cmd[0];
       i++;
     }

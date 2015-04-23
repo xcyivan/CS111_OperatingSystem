@@ -15,6 +15,8 @@ struct command
 {
   enum command_type type;
 
+  int line;
+
   // Exit status, or -1 if not known (e.g., because it has not exited yet).
   int status;
 

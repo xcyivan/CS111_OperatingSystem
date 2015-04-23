@@ -64,6 +64,7 @@ main (int argc, char **argv)
 	}
       else
 	{
+    // bool flag = false;
 	  last_command = command;
 	  execute_command (command, time_travel);
 	}
