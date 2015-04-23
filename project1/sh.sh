@@ -23,7 +23,7 @@
 
 exec ls |  grep s 
 echo 1
-=======
+
 # ls |  grep s  && exec ls
 
 
