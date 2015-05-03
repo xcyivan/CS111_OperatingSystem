@@ -11,29 +11,42 @@
 static char const *program_name;
 static char const *script_name;
 
-void init_dependency_graph(dependency_graph_t dependency_graph)
+dependency_graph_t init_dependency_graph()
 {
-  dependency_graph->no_dependencies = (queue_t)checked_malloc(sizeof(struct queue));
-  dependency_graph->dependencies = (queue_t)checked_malloc(sizeof(struct queue));
+  dependency_graph_t dependency_graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
+  dependency_graph->no_dependencies = init_queue();
+  dependency_graph->dependencies = init_queue();
+  return dependency_graph;
 }
 
-void init_queue(queue_t queue)
+queue_t init_queue()
 {
-  queue->node = (graph_node_t)checked_malloc(sizeof(struct graph_node));
-  queue->next = (graph_node_t)checked_malloc(sizeof(struct graph_node));
+  queue_t queue = (queue_t)checked_malloc(sizeof(struct queue));
+  queue->node = NULL;
+  queue->next = NULL;
+  return queue;
 }
 
-void init_graph_node(graph_node_t graph_node, command_t command)
+graph_node_t init_graph_node(command_t command)
 {
+  graph_node_t graph_node = (graph_node_t)checked_malloc(sizeof(struct graph_node));
   graph_node->command = command;
-  graph_node->before = (queue_t)checked_malloc(sizeof(struct queue));
+  graph_node->before = init_queue();
   graph_node->pid = -1;
+  return graph_node;
 }
 
-void add_queue(queue_t queue)
+void add_queue(queue_t queue, command_t command)
 {
-  //Pending to implement
-  ;
+  queue_t cur = queue;
+  graph_node_t node = init_graph_node(command);
+  while (cur->next != NULL)
+  {
+    cur = cur->next;
+  }
+  queue_t new = init_queue();
+  new->node = node;
+  cur->next = new;
 }
 
 dependency_graph_t create_graph(command_stream_t command_stream)

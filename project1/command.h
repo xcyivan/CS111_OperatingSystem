@@ -20,7 +20,7 @@ struct graph_node
 struct queue
 {
 	graph_node_t node;
-	graph_node_t next;
+	queue_t next;
 };
 
 struct dependency_graph{
@@ -49,13 +49,13 @@ void execute_command (command_t, bool);
    been executed.  Wait for the command, if it is not already finished.  */
 int command_status (command_t);
 
-void add_queue(queue_t queue);
+void add_queue(queue_t queue, command_t command);
 
-void init_queue(queue_t queue);
+queue_t init_queue();
 
-void init_graph_node(graph_node_t graph_node, command_t command);
+graph_node_t init_graph_node(command_t command);
 
-void init_dependency_graph(dependency_graph_t dependency_graph);
+dependency_graph_t init_dependency_graph();
 
 dependency_graph_t create_graph(command_stream_t command_stream);
 
