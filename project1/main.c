@@ -6,10 +6,62 @@
 #include <stdio.h>
 
 #include "command.h"
-// #include "command_internals.h"
+#include "alloc.h"
 
 static char const *program_name;
 static char const *script_name;
+
+void init_dependency_graph(dependency_graph_t dependency_graph)
+{
+  dependency_graph->no_dependencies = (queue_t)checked_malloc(sizeof(struct queue));
+  dependency_graph->dependencies = (queue_t)checked_malloc(sizeof(struct queue));
+}
+
+void init_queue(queue_t queue)
+{
+  queue->node = (graph_node_t)checked_malloc(sizeof(struct graph_node));
+  queue->next = (graph_node_t)checked_malloc(sizeof(struct graph_node));
+}
+
+void init_graph_node(graph_node_t graph_node, command_t command)
+{
+  graph_node->command = command;
+  graph_node->before = (queue_t)checked_malloc(sizeof(struct queue));
+  graph_node->pid = -1;
+}
+
+void add_queue(queue_t queue)
+{
+  //Pending to implement
+  ;
+}
+
+dependency_graph_t create_graph(command_stream_t command_stream)
+{
+  //Pending to implement
+  dependency_graph_t graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
+  return graph;
+}
+
+void execute_graph(dependency_graph_t graph)
+{
+  execute_no_dependencies(graph->no_dependencies);
+  execute_dependencies(graph->dependencies);
+}
+
+void execute_no_dependencies(queue_t queue)
+{
+  //Pending to implement
+  ;
+}
+
+void execute_dependencies(queue_t queue)
+{
+  //Pending to implement
+  ;
+}
+
+
 
 static void
 usage (void)
@@ -55,20 +107,31 @@ main (int argc, char **argv)
 
   command_t last_command = NULL;
   command_t command;
-  while ((command = read_command_stream (command_stream)))
+  if (time_travel)
+  {
+    dependency_graph_t graph = create_graph(command_stream);
+    // dependency_graph_t graph ;
+    // int status = 0;
+    // status = execute_graph(graph);
+    execute_graph(graph);
+  }
+  else
+  {
+    while ((command = read_command_stream (command_stream)))
     {
       if (print_tree)
-	{
-	  printf ("# %d\n", command_number++);
-	  print_command (command);
-	}
+    	{
+    	  printf ("# %d\n", command_number++);
+    	  print_command (command);
+    	}
       else
-	{
-    // bool flag = false;
-	  last_command = command;
-	  execute_command (command, time_travel);
-	}
+    	{
+        // bool flag = false;
+    	  last_command = command;
+    	  execute_command (command, time_travel);
+    	}
     }
+  }
 
   return print_tree || !last_command ? 0 : command_status (last_command);
 }

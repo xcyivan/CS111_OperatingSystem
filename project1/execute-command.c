@@ -3,7 +3,7 @@
 #include "command.h"
 #include "command-internals.h"
 
-#include <error.h>
+// #include <error.h>
 #include <stdio.h>
 
 #include <unistd.h>
