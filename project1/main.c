@@ -128,7 +128,7 @@ bool isDependent(graph_node_t n1, graph_node_t n2){
     //WAR
     int j=0;
     for(j=0; j<n1->m_readList->itemNum; j++){
-      if(!strcmp(n2->m_readList->item[i], n1->m_readList->item[j]))
+      if(!strcmp(n2->m_writeList->item[i], n1->m_readList->item[j]))
         return true;
     }
     //WAW
