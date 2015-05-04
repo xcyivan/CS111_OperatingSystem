@@ -33,6 +33,8 @@ graph_node_t init_graph_node(command_t command)
   graph_node->command = command;
   graph_node->before = init_queue();
   graph_node->pid = -1;
+  graph_node->m_readList = init_arr();
+  graph_node->writeList = init_arr();
   return graph_node;
 }
 
@@ -54,16 +56,8 @@ arr_t init_arr(){
   return newArr;
 }
 
-listNode_t init_listNode(graph_node_t node){
-  listNode_t newlistNode = (listNode_t)checked_malloc(sizeof(struct listNode));
-  newlistNode->m_node=node;
-  newlistNode->m_readList = init_arr();
-  newListNode->m_writeList = init_arr();
-  return newListNode;
-}
+processCommand(command_t cmd, graph_node_t gNode){
 
-processCommand(command_t cmd, listNode_t lNode){
-  
 }
 
 
@@ -72,14 +66,14 @@ dependency_graph_t create_graph(command_stream_t command_stream)
 
   dependency_graph_t graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
   command_t command_tree;
-  listNode_t lnArr[1024];
-  int lnCount=0;
+  graph_node_t gnArr[1024];
+  int gnCount=0;
   while ((command_tree = read_command_stream (command_stream))){
     graph_node_t gNode=init_graph_node(command_tree);
     listNode_t lNode=init_listNode(gNode);
-    lnArr[lnCount++]=lNode;
-    processCommand(command_tree, lNode);
-    checkDependency(lnArr);
+    gnArr[gnCount++]=gNode;
+    processCommand(command_tree, gNode);
+    checkDependency(gnArr);
     if(gNode->before->next==NULL)
       add_queue(graph->no_dependencies,gNode);
     else
