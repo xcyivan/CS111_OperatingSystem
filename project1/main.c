@@ -33,6 +33,8 @@ graph_node_t init_graph_node(command_t command)
   graph_node->command = command;
   graph_node->before = init_queue();
   graph_node->pid = -1;
+  graph_node->m_readList = init_arr();
+  graph_node->m_writeList = init_arr();
   return graph_node;
 }
 
@@ -54,16 +56,10 @@ arr_t init_arr(){
   return newArr;
 }
 
-listNode_t init_listNode(graph_node_t node){
-  listNode_t newlistNode = (listNode_t)checked_malloc(sizeof(struct listNode));
-  newlistNode->m_node=node;
-  newlistNode->m_readList = init_arr();
-  newListNode->m_writeList = init_arr();
-  return newListNode;
-}
 
-int processCommand(command_t cmd, listNode_t lNode){
+void processCommand(command_t cmd, graph_node_t graph_node){
   
+
 }
 
 
@@ -71,20 +67,20 @@ dependency_graph_t create_graph(command_stream_t command_stream)
 {
 
   dependency_graph_t graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
-  command_t command_tree;
-  listNode_t lnArr[1024];
-  int lnCount=0;
-  while ((command_tree = read_command_stream (command_stream))){
-    graph_node_t gNode=init_graph_node(command_tree);
-    listNode_t lNode=init_listNode(gNode);
-    lnArr[lnCount++]=lNode;
-    processCommand(command_tree, lNode);
-    checkDependency(lnArr);
-    if(gNode->before->next==NULL)
-      add_queue(graph->no_dependencies,gNode);
-    else
-      add_queue(graph->dependencies,gNode);
-  }
+//   command_t command_tree;
+//   graph_node_t gnArr[1024];
+//   int gnCount=0;
+//   while ((command_tree = read_command_stream (command_stream))){
+//     graph_node_t gNode=init_graph_node(command_tree);
+//     listNode_t lNode=init_listNode(gNode);
+//     gnArr[gnCount++]=gNode;
+//     processCommand(command_tree, gNode);
+//     checkDependency(gnArr);
+//     if(gNode->before->next==NULL)
+//       add_queue(graph->no_dependencies,gNode);
+//     else
+//       add_queue(graph->dependencies,gNode);
+//   }
   return graph;
 }
 
@@ -96,14 +92,54 @@ void execute_graph(dependency_graph_t graph)
 
 void execute_no_dependencies(queue_t queue)
 {
-  //Pending to implement
-  ;
+  // queue_t head = queue;
+  queue_t cur = queue;
+  while (cur->next != NULL)
+  {
+    cur = queue->next;
+    pid_t pid = fork();
+    if (pid == 0)
+    {
+      execute_command(cur->node->command, true);
+      _exit(0);
+    }
+    else 
+    {
+      cur->node->pid = pid;
+    }
+  }
 }
 
 void execute_dependencies(queue_t queue)
 {
-  //Pending to implement
-  ;
+  queue_t i = queue;
+  while (i->next != NULL)
+  {
+    i = i->next;
+    queue_t head_j = i->node->before;
+    queue_t j = head_j;
+    while (j->next != NULL)
+    {
+      j = j->next;
+      if (j->node->pid == -1) break;
+    }
+    int status;
+    j = head_j;
+    while (j->next != NULL)
+    {
+      waitpid(j->node->pid, &status, 0);
+    }
+    pid_t pid = fork();
+    if(pid == 0)
+    {
+      execute_command(i->node->command, true);
+      _exit(0);
+    }
+    else
+    {
+      i->node->pid = pid;
+    }
+  }
 }
 
 

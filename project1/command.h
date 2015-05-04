@@ -10,7 +10,6 @@ typedef struct graph_node *graph_node_t;
 typedef struct queue *queue_t;
 typedef struct dependency_graph *dependency_graph_t;
 
-typedef struct listNode* listNode_t;
 typedef struct arr* arr_t;
 
 struct queue
@@ -19,10 +18,17 @@ struct queue
 	queue_t next;
 };
 
+struct arr{
+	char* item[1024];
+	int itemNum;
+};
+
 struct graph_node
 {
 	command_t command;
 	queue_t before;
+	arr_t m_readList;
+	arr_t m_writeList;
 	pid_t pid;
 };
 
@@ -30,18 +36,6 @@ struct dependency_graph{
 	queue_t no_dependencies;
 	queue_t dependencies; 
 };
-
-struct arr{
-	char* item[1024];
-	int itemNum;
-};
-
-struct listNode{
-	graph_node_t m_node;
-	arr_t m_readList;
-	arr_t m_writeList;
-};
-
 
 /* Create a command stream from GETBYTE and ARG.  A reader of
    the command stream will invoke GETBYTE (ARG) to get the next byte.
@@ -83,7 +77,6 @@ void execute_dependencies(queue_t queue);
 
 arr_t init_arr();
 
-listNode_t init_listNode(graph_node_t node);
 
 
 
