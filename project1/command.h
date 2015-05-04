@@ -10,12 +10,8 @@ typedef struct graph_node *graph_node_t;
 typedef struct queue *queue_t;
 typedef struct dependency_graph *dependency_graph_t;
 
-struct graph_node
-{
-	command_t command;
-	queue_t before;
-	pid_t pid;
-};
+typedef struct listNode* listNode_t;
+typedef struct arr* arr_t;
 
 struct queue
 {
@@ -23,9 +19,27 @@ struct queue
 	queue_t next;
 };
 
+struct graph_node
+{
+	command_t command;
+	queue_t before;
+	pid_t pid;
+};
+
 struct dependency_graph{
 	queue_t no_dependencies;
 	queue_t dependencies; 
+};
+
+struct arr{
+	char* item[1024];
+	int itemNum;
+};
+
+struct listNode{
+	graph_node_t m_node;
+	arr_t m_readList;
+	arr_t m_writeList;
 };
 
 
@@ -49,8 +63,10 @@ void execute_command (command_t, bool);
    been executed.  Wait for the command, if it is not already finished.  */
 int command_status (command_t);
 
-void add_queue(queue_t queue, command_t command);
+void add_queue(queue_t queue, graph_node_t node);
 
+
+//----------------------for 1C---------------------------
 queue_t init_queue();
 
 graph_node_t init_graph_node(command_t command);
@@ -65,7 +81,9 @@ void execute_no_dependencies(queue_t queue);
 
 void execute_dependencies(queue_t queue);
 
+arr_t init_arr();
 
+listNode_t init_listNode(graph_node_t node);
 
 
 
