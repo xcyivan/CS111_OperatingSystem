@@ -134,7 +134,7 @@ bool isDependent(graph_node_t n1, graph_node_t n2){
     //WAW
     int k=0;
     for(k=0; k<n1->m_writeList->itemNum; k++){
-      if(!strcmp(n2->m_writeList->item[1], n1->m_writeList->item[j]))
+      if(!strcmp(n2->m_writeList->item[i], n1->m_writeList->item[k]))
         return true;
     }
   }
@@ -201,13 +201,14 @@ void execute_dependencies(queue_t queue)
   queue_t i = queue;
   while (i->next != NULL)
   {
-    i = i->next;
+    loop:i = i->next;
     queue_t head_j = i->node->before;
     queue_t j = head_j;
     while (j->next != NULL)
     {
       j = j->next;
-      if (j->node->pid == -1) break;
+      // if (j->node->pid == -1) break;
+      if (j->node->pid == -1) goto loop;
     }
     int status;
     j = head_j;
