@@ -62,7 +62,7 @@ listNode_t init_listNode(graph_node_t node){
   return newListNode;
 }
 
-processCommand(command_t cmd, listNode_t lNode){
+int processCommand(command_t cmd, listNode_t lNode){
   
 }
 
