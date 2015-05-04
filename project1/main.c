@@ -15,6 +15,24 @@
 static char const *program_name;
 static char const *script_name;
 
+
+/*--------------helper----------------*/
+void print_queue(queue_t queue)
+{
+  queue_t cur = queue;
+  int i = 0;
+  while (cur->next != NULL)
+  {
+    cur = cur->next;
+    printf("%d: \n", i);
+    print_command(cur->node->command);
+    printf("\n");
+    i++;
+  }
+}
+/*--------------helper----------------*/
+
+
 dependency_graph_t init_dependency_graph()
 {
   dependency_graph_t dependency_graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
@@ -172,7 +190,11 @@ dependency_graph_t create_graph(command_stream_t command_stream)
 
 void execute_graph(dependency_graph_t graph)
 {
+  // printf("no_dependencies\n");
+  // print_queue(graph->no_dependencies);
   execute_no_dependencies(graph->no_dependencies);
+  // printf("dependencies\n");
+  // print_queue(graph->dependencies);
   execute_dependencies(graph->dependencies);
 }
 
@@ -201,9 +223,13 @@ void execute_dependencies(queue_t queue)
   queue_t i = queue;
   while (i->next != NULL)
   {
-    loop:i = i->next;
+
+    i = i->next;
     queue_t head_j = i->node->before;
+    // printf("before:\n");
     queue_t j = head_j;
+    // print_queue(head_j);
+    loop:
     while (j->next != NULL)
     {
       j = j->next;
