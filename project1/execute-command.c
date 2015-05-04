@@ -41,10 +41,10 @@ show_error (char *desc, char *desc2)
 void 
 execute_command (command_t c, bool time_travel)
 {
-	if(time_travel){
-		fprintf(stderr, "Time Travel Mode is yet to be implemented, please try later!\n");
-		exit(1);
-	}
+	// if(time_travel){
+	// 	fprintf(stderr, "Time Travel Mode is yet to be implemented, please try later!\n");
+	// 	exit(1);
+	// }
 
 	switch(c->type){
 		case SIMPLE_COMMAND:
@@ -81,6 +81,7 @@ int redirect(command_t c, bool time_travel){
 		{//can't dup stdin to fd
 			error(1,0,"Unable to dup2 %s as stdin", c->input);
 		}
+		close(fd);
 	}
 	if(c->output!=NULL){
 		int fd=open(c->output,O_CREAT|O_TRUNC|O_WRONLY,0644);
@@ -92,13 +93,17 @@ int redirect(command_t c, bool time_travel){
 		{//can't dup stdout to fd
 			error(1,0,"Unable to dup2 %s to stdout", c->output);
 		}
+		close(fd);
 	}
 	return 0;
 }
 
 int exe_simple_command(command_t c, bool time_travel)
 {
+	int fd_in_backup = dup(STDIN_FILENO);
+	int fd_out_backup = dup(STDOUT_FILENO);
 	redirect(c, time_travel);
+	
 	exe_exec_command(c, time_travel);
 	pid_t p = fork();
 	if (p == 0)
@@ -114,6 +119,10 @@ int exe_simple_command(command_t c, bool time_travel)
 		int exit_status = WEXITSTATUS(status);
 		c->status = exit_status;
 	}
+	dup2(fd_in_backup, STDIN_FILENO);
+	dup2(fd_out_backup, STDOUT_FILENO);
+	close(fd_in_backup);
+	close(fd_out_backup);
 	return 0;
 }
 
@@ -199,9 +208,16 @@ int exe_pipe_command(command_t c,bool time_travel)
 
 int exe_subshell_command(command_t c, bool time_travel)
 {
+	int fd_in_backup = dup(STDIN_FILENO);
+	int fd_out_backup = dup(STDOUT_FILENO);
 	redirect(c, time_travel);
 	execute_command(c->u.subshell_command, time_travel);
 	c->status = c->u.subshell_command->status;
+	dup2(fd_in_backup, STDIN_FILENO);
+	dup2(fd_out_backup, STDOUT_FILENO);
+	close(fd_in_backup);
+	close(fd_out_backup);
+
 	return 0;
 }
 

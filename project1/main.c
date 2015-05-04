@@ -4,9 +4,13 @@
 // #include <error.h>
 #include <getopt.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/wait.h>
 
 #include "command.h"
 #include "alloc.h"
+#include "command-internals.h"
+
 
 static char const *program_name;
 static char const *script_name;
@@ -57,30 +61,112 @@ arr_t init_arr(){
 }
 
 
-void processCommand(command_t cmd, graph_node_t graph_node){
-  
 
+void processCommand(command_t cmd, graph_node_t gNode){
+  if(cmd->type==SIMPLE_COMMAND){
+    if(cmd->input!=NULL){
+      int itemNum = gNode->m_readList->itemNum;
+      gNode->m_readList->item[itemNum] = checked_malloc((size_t)strlen(cmd->input)+1);
+      memset(gNode->m_readList->item[itemNum], 0, (size_t)sizeof(strlen(cmd->input)+1));
+      strcpy(gNode->m_readList->item[itemNum], cmd->input);
+      gNode->m_readList->itemNum++;
+    }
+    if(cmd->output!=NULL){
+      int itemNum = gNode->m_writeList->itemNum;
+      gNode->m_writeList->item[itemNum]=checked_malloc(strlen(cmd->output)+1);
+      memset(gNode->m_writeList->item[itemNum], 0, sizeof(strlen(cmd->output)+1));
+      strcpy(gNode->m_writeList->item[itemNum], cmd->output);
+      gNode->m_writeList->itemNum++;
+    }
+    int i=1;
+    for(i=1; cmd->u.word[i]!=0; i++){
+      if(cmd->u.word[i][0]!='-'){
+        int itemNum = gNode->m_readList->itemNum;
+        gNode->m_readList->item[itemNum]=checked_malloc(strlen(cmd->u.word[i])+1);
+        memset(gNode->m_readList->item[itemNum], 0, strlen(cmd->u.word[i])+1);
+        strcpy(gNode->m_readList->item[itemNum], cmd->u.word[i]);
+        gNode->m_readList->itemNum++;
+      }
+    }
+  }
+
+  else if(cmd->type==SUBSHELL_COMMAND){
+    if(cmd->input!=NULL){
+      int itemNum = gNode->m_readList->itemNum;
+      gNode->m_readList->item[itemNum]=checked_malloc(strlen(cmd->input)+1);
+      memset(gNode->m_readList->item[itemNum], 0, sizeof(strlen(cmd->input)+1));
+      strcpy(gNode->m_readList->item[itemNum], cmd->input);
+      gNode->m_readList->itemNum++;
+    }
+    if(cmd->output!=NULL){
+      int itemNum = gNode->m_writeList->itemNum;
+      gNode->m_writeList->item[itemNum]=checked_malloc(strlen(cmd->output)+1);
+      memset(gNode->m_writeList->item[itemNum], 0, sizeof(strlen(cmd->output)+1));
+      strcpy(gNode->m_writeList->item[itemNum], cmd->output);
+      gNode->m_writeList->itemNum++;
+    }
+  }
+
+  else{
+    processCommand(cmd->u.command[0],gNode);
+    processCommand(cmd->u.command[1],gNode);
+  }
 }
 
+bool isDependent(graph_node_t n1, graph_node_t n2){
+  //n1 is the leading node, n2 is the following node
+  int i=0;
+  for(i=0; i<n2->m_readList->itemNum; i++){
+    //RAW
+    int j=0;
+    for(j=0; j<n1->m_writeList->itemNum; j++){
+      if(!strcmp(n2->m_readList->item[i], n1->m_writeList->item[j]))
+        return true;
+    }
+  }
+  for(i=0; i<n2->m_writeList->itemNum; i++){
+    //WAR
+    int j=0;
+    for(j=0; j<n1->m_readList->itemNum; j++){
+      if(!strcmp(n2->m_readList->item[i], n1->m_readList->item[j]))
+        return true;
+    }
+    //WAW
+    int k=0;
+    for(k=0; k<n1->m_writeList->itemNum; k++){
+      if(!strcmp(n2->m_writeList->item[1], n1->m_writeList->item[j]))
+        return true;
+    }
+  }
+  return false;
+}
+
+void checkDependency(graph_node_t* gnArr, int gnCount){
+  int i=0;
+  for(i=0; i<gnCount-1; i++){
+    if(isDependent(gnArr[i],gnArr[gnCount-1]))
+      add_queue(gnArr[gnCount-1]->before, gnArr[i]);
+  }
+}
 
 dependency_graph_t create_graph(command_stream_t command_stream)
 {
 
-  dependency_graph_t graph = (dependency_graph_t)checked_malloc(sizeof(struct dependency_graph));
-//   command_t command_tree;
-//   graph_node_t gnArr[1024];
-//   int gnCount=0;
-//   while ((command_tree = read_command_stream (command_stream))){
-//     graph_node_t gNode=init_graph_node(command_tree);
-//     listNode_t lNode=init_listNode(gNode);
-//     gnArr[gnCount++]=gNode;
-//     processCommand(command_tree, gNode);
-//     checkDependency(gnArr);
-//     if(gNode->before->next==NULL)
-//       add_queue(graph->no_dependencies,gNode);
-//     else
-//       add_queue(graph->dependencies,gNode);
-//   }
+  dependency_graph_t graph = init_dependency_graph();
+  command_t command_tree;
+  graph_node_t gnArr[1024];
+  int gnCount=0;
+  while ((command_tree = read_command_stream (command_stream))){
+    graph_node_t gNode=init_graph_node(command_tree);
+    // listNode_t lNode=init_listNode(gNode);
+    gnArr[gnCount++]=gNode;
+    processCommand(command_tree, gNode);
+    checkDependency(gnArr,gnCount);
+    if(gNode->before->next==NULL)
+      add_queue(graph->no_dependencies,gNode);
+    else
+      add_queue(graph->dependencies,gNode);
+  }
   return graph;
 }
 
@@ -96,7 +182,7 @@ void execute_no_dependencies(queue_t queue)
   queue_t cur = queue;
   while (cur->next != NULL)
   {
-    cur = queue->next;
+    cur = cur->next;
     pid_t pid = fork();
     if (pid == 0)
     {
@@ -127,6 +213,7 @@ void execute_dependencies(queue_t queue)
     j = head_j;
     while (j->next != NULL)
     {
+      j = j->next;
       waitpid(j->node->pid, &status, 0);
     }
     pid_t pid = fork();
@@ -195,6 +282,7 @@ main (int argc, char **argv)
     // int status = 0;
     // status = execute_graph(graph);
     execute_graph(graph);
+    // _exit(0);
   }
   else
   {
@@ -212,7 +300,9 @@ main (int argc, char **argv)
     	  execute_command (command, time_travel);
     	}
     }
-  }
+  
 
-  return print_tree || !last_command ? 0 : command_status (last_command);
+    return print_tree || !last_command ? 0 : command_status (last_command);
+  }
 }
+
