@@ -6,3 +6,18 @@ Mentions any special features or limitations.
 Authors:
 Shiyuan (York) Yang: 804397286
 Cheyuan (Ivan) Xia: 504422348
+
+Lab1a limitations:
+1. Cannot parse subshell with multiple commands.
+2. Cannot parse subshell with one command followed by or following more than 2 '\n's.
+
+Design problem lab1c:
+We implement the second design problem of lab1c which requires to limit the amount of parallelism to at most N subprocesses, where N is a parameter that you can set by an argument to the shell. 
+
+We implement this function by using shared memory and semaphore. To use the limitation option, you need type -n option with argument. E.g.
+
+./timetrash -t -n 5 test.sh
+
+This command will limit the amount to 5. 
+
+To illustrate the effect, we design a -v option which will force each process sleep 3 seconds before they exit. It will be very easy to see the parallelism. 

@@ -6,7 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/wait.h>
-
+#include <semaphore.h>      /* sem_open(), sem_destroy(), sem_wait().. */
+#include <fcntl.h>          /* O_CREAT, O_EXEC          */
+#include <sys/shm.h> 
+#include <sys/types.h> 
 #include "command.h"
 #include "alloc.h"
 #include "command-internals.h"
@@ -31,6 +34,12 @@ void print_queue(queue_t queue)
   }
 }
 /*--------------helper----------------*/
+
+key_t shmkey;                 /*      shared memory key       */
+int shmid;                    /*      shared memory id        */
+sem_t *sem;                   /*      synch semaphore         *//*shared */
+int *p;                       /*      shared variable         *//*shared */
+bool visiable;
 
 
 dependency_graph_t init_dependency_graph()
@@ -205,10 +214,24 @@ void execute_no_dependencies(queue_t queue)
   while (cur->next != NULL)
   {
     cur = cur->next;
-    pid_t pid = fork();
+    pid_t pid;
+
+    sem_wait (sem); 
+    while ((*p) <= 0);
+    (*p)--;
+    pid = fork ();
+    sem_post(sem);
+
     if (pid == 0)
     {
       execute_command(cur->node->command, true);
+      if (visiable)
+        sleep(3);
+
+      sem_wait(sem);
+      (*p)++;
+      sem_post(sem);
+
       _exit(0);
     }
     else 
@@ -243,10 +266,22 @@ void execute_dependencies(queue_t queue)
       j = j->next;
       waitpid(j->node->pid, &status, 0);
     }
-    pid_t pid = fork();
+    pid_t pid;
+
+    sem_wait (sem); 
+    while ((*p) <= 0);
+    (*p)--;
+    pid = fork ();
+    sem_post(sem);
+
     if(pid == 0)
     {
       execute_command(i->node->command, true);
+      if (visiable)
+        sleep(3);
+      sem_wait(sem);
+      (*p)++;
+      sem_post(sem);
       _exit(0);
     }
     else
@@ -278,16 +313,37 @@ main (int argc, char **argv)
   bool print_tree = false;
   bool time_travel = false;
   program_name = argv[0];
+  int a;
+
+  
+  /* initialize a shared variable in shared memory */
+  shmkey = ftok ("/dev/null", 5);       /* valid directory name and a number */
+  // printf ("shmkey for p = %d\n", shmkey);
+  shmid = shmget (shmkey, sizeof (int), 0644 | IPC_CREAT);
+  if (shmid < 0){                           /* shared memory error check */
+      perror ("shmget\n");
+      _exit (1);
+  }
+
+  p = (int *) shmat (shmid, NULL, 0);   /* attach p to shared memory */
 
   for (;;)
-    switch (getopt (argc, argv, "pt"))
+    switch (getopt (argc, argv, "pvtn:"))
       {
       case 'p': print_tree = true; break;
       case 't': time_travel = true; break;
+      case 'n': *p = atoi(optarg); 
+                // printf("!!%d\n",(*p));
+                break;
+      case 'v': visiable = true; break;
       default: usage (); break;
       case -1: goto options_exhausted;
       }
  options_exhausted:;
+
+  sem = sem_open ("pSem", O_CREAT | O_EXCL, 0644, 1); 
+  sem_unlink ("pSem");   
+
 
   // There must be exactly one file argument.
   if (optind != argc - 1)
@@ -305,9 +361,6 @@ main (int argc, char **argv)
   if (time_travel)
   {
     dependency_graph_t graph = create_graph(command_stream);
-    // dependency_graph_t graph ;
-    // int status = 0;
-    // status = execute_graph(graph);
     execute_graph(graph);
     // _exit(0);
   }

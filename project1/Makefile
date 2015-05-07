@@ -2,7 +2,8 @@
 
 CC = gcc
 # CFLAGS = -g -Wall -Wextra -Werror
-CFLAGS = -g 
+CFLAGS = -g
+SUFFIX = -lpthread
 LAB = 1
 DISTDIR = lab1-$(USER)
 CHECK_DIST = ./check-dist
@@ -26,7 +27,7 @@ DIST_SOURCES = \
   $(TESTS) check-dist README
 
 timetrash: $(TIMETRASH_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(TIMETRASH_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(TIMETRASH_OBJECTS) $(SUFFIX)
 
 read-command.o stack.o: stack.h
 stack.o alloc.o: alloc.h
