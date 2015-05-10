@@ -121,8 +121,24 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// 'req->buffer' members, and the rq_data_dir() function.
 
 	// Your code here.
-	eprintk("Should process request...\n");
-
+	if(req->sector+req->current_nr_sectors>nsectors){
+		eprint("Error, exceed ramdisk size\n");
+		end_request(req,0);
+		return;       
+	}
+	unsigned int requestType = rq_data_dir(req);
+	uint8_t ptr = d->data+(req->sector)*SECTOR_SIZE;
+	if(requestType==READ){
+		memcpy(req->buffer,ptr,req->current_nr_sectors*SECTOR_SIZE);
+	}
+	else if(requestType==WRITE){
+		memcpy(ptr,req->buffer,req->current_nr_sectors*SECTOR_SIZE);
+	}
+	else{
+		eprint("Error, invalid request type!\n");
+		end_request(req,0);
+		return;
+	}
 	end_request(req, 1);
 }
 
