@@ -46,7 +46,7 @@ module_param(nsectors, int, 0);
 
 struct pid_list{
 	pid_t m_pid;
-	struct *pid_list m_next;
+	struct pid_list* m_next;
 };
 typedef struct pid_list* pid_list_t;
 
@@ -75,7 +75,7 @@ typedef struct osprd_info {
 	int n_read_lock;
 
 	pid_t write_lock_pid;
-	pit_list_t read_lock_pid_list;
+	pid_list_t read_lock_pid_list;
 
 	// The following elements are used internally; you don't need
 	// to understand them.
@@ -134,7 +134,7 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 
 	// Your code here.
 	if(req->sector+req->current_nr_sectors>nsectors){
-		eprint("Error, exceed ramdisk size\n");
+		eprintk("Error, exceed ramdisk size\n");
 		end_request(req,0);
 		return;       
 	}
@@ -147,7 +147,7 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 		memcpy(ptr,req->buffer,req->current_nr_sectors*SECTOR_SIZE);
 	}
 	else{
-		eprint("Error, invalid request type!\n");
+		eprintk("Error, invalid request type!\n");
 		end_request(req,0);
 		return;
 	}
@@ -183,7 +183,7 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 
 		// This line avoids compiler warnings; you may remove it.
 		if(filp->f_flags & F_OSPRD_LOCKED){
-			osp_spin_lock(d->mutex);////////&?
+			osp_spin_lock(&d->mutex);////////&?
 			if(filp_writable){
 				d->n_write_lock--;
 				d->write_lock_pid=-1;
@@ -194,23 +194,23 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 				pid_list_t fast = d->read_lock_pid_list;
 				pid_list_t slow = d->read_lock_pid_list;
 				while(fast){
-					if(fast->pid == current->pid){
+					if(fast->m_pid == current->pid){
 						break;
 					}
 					slow = fast;
-					fast = fast->next;
+					fast = fast->m_next;
 				}
 				if(slow==NULL){//if current pid is at the head
-					read_lock_pid_list = read_lock_pid_list->next;
+					d->read_lock_pid_list = d->read_lock_pid_list->m_next;
 				}
 				else{
-					slow->next = fast->next;
+					slow->m_next = fast->m_next;
 				}
 
 			}
-			wake_up_all(d->blockq);////////&?
+			wake_up_all(&d->blockq);////////&?
 			filp->f_flags &= ~(F_OSPRD_LOCKED);
-			osp_spin_unlock(d->mutex);////////&?
+			osp_spin_unlock(&d->mutex);////////&?
 		}
 
 		(void) filp_writable, (void) d;
