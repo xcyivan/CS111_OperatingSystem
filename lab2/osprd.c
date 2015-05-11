@@ -119,6 +119,8 @@ static void for_each_open_file(struct task_struct *task,
  */
 static void osprd_process_request(osprd_info_t *d, struct request *req)
 {
+	int requestType;
+	uint8_t *ptr;
 	if (!blk_fs_request(req)) {
 		end_request(req, 0);
 		return;
@@ -133,9 +135,9 @@ static void osprd_process_request(osprd_info_t *d, struct request *req)
 	// 'req->buffer' members, and the rq_data_dir() function.
 
 	// Your code here.
-	int requestType;
+	
 	requestType = rq_data_dir(req);
-	uint8_t *ptr = d->data+(req->sector)*SECTOR_SIZE;
+	ptr = d->data+(req->sector)*SECTOR_SIZE;
 	if(req->sector+req->current_nr_sectors>nsectors){
 		eprintk("Error, exceed ramdisk size\n"); 
 		end_request(req,0);
@@ -183,36 +185,38 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// Your code here.
 
 		// This line avoids compiler warnings; you may remove it.
-		// if(filp->f_flags & F_OSPRD_LOCKED){
-		// 	osp_spin_lock(&d->mutex);////////&?
-		// 	if(filp_writable){
-		// 		d->n_write_lock--;
-		// 		d->write_lock_pid=-1;
-		// 	}
-		// 	else{
-		// 		//the read_pid_list is guranteed to have at least 1 element
-		// 		d->n_read_lock--;
-		// 		pid_list_t fast = d->read_lock_pid_list;
-		// 		pid_list_t slow = d->read_lock_pid_list;
-		// 		while(fast){
-		// 			if(fast->m_pid == current->pid){
-		// 				break;
-		// 			}
-		// 			slow = fast;
-		// 			fast = fast->m_next;
-		// 		}
-		// 		if(slow==NULL){//if current pid is at the head
-		// 			d->read_lock_pid_list = d->read_lock_pid_list->m_next;
-		// 		}
-		// 		else{
-		// 			slow->m_next = fast->m_next;
-		// 		}
+		if(filp->f_flags & F_OSPRD_LOCKED){
+			osp_spin_lock(&d->mutex);////////&?
+			if(filp_writable){
+				d->n_write_lock--;
+				d->write_lock_pid=-1;
+			}
+			else{
+				//the read_pid_list is guranteed to have at least 1 element
+				pid_list_t fast;
+		        pid_list_t slow;
+				d->n_read_lock--;
+				fast = d->read_lock_pid_list;
+				slow = d->read_lock_pid_list;
+				while(fast){
+					if(fast->m_pid == current->pid){
+						break;
+					}
+					slow = fast;
+					fast = fast->m_next;
+				}
+				if(slow==NULL){//if current pid is at the head
+					d->read_lock_pid_list = d->read_lock_pid_list->m_next;
+				}
+				else{
+					slow->m_next = fast->m_next;
+				}
 
-		// 	}
-		// 	wake_up_all(&d->blockq);////////&?
-		// 	filp->f_flags &= ~(F_OSPRD_LOCKED);
-		// 	osp_spin_unlock(&d->mutex);////////&?
-		// }
+			}
+			wake_up_all(&d->blockq);////////&?
+			filp->f_flags &= ~(F_OSPRD_LOCKED);
+			osp_spin_unlock(&d->mutex);////////&?
+		}
 
 		(void) filp_writable, (void) d;
 
@@ -295,8 +299,32 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// Otherwise, if we can grant the lock request, return 0.
 
 		// Your code here (instead of the next two lines).
-		eprintk("Attempting to try acquire\n");
-		r = -ENOTTY;
+		// eprintk("Attempting to try acquire\n");
+		// r = -ENOTTY;
+		if (filp_writable) 
+		{
+			spin_lock(&d->mutex);
+			if (d->n_write_lock > 0 || d->n_read_lock > 0 || d->ticket_tail != d->ticket_head)
+				r = -EBUSY;
+			else
+			{
+				filp->f_flags |= F_OSPRD_LOCKED;
+				d->n_write_lock++;
+			}
+			spin_unlcok(&d->mutex);
+		} 
+		else
+		{
+			spin_lock(&d->mutex);
+			if (d->n_write_lock > 0 || d->ticket_head != d->ticket_tail)
+				r = -EBUSY;
+			else
+			{
+				filp->f_flags |= F_OSPRD_LOCKED;
+				d->n_read_lock++;
+			}
+			spin_unlock(&d->mutex);
+		}
 
 	} else if (cmd == OSPRDIOCRELEASE) {
 
@@ -308,7 +336,18 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// you need, and return 0.
 
 		// Your code here (instead of the next line).
-		r = -ENOTTY;
+		// r = -ENOTTY;
+		if (!(filp->f_flags & F_OSPRD_LOCKED))
+			return -EINVAL;
+
+		spin_lock(&d->mutex);
+		if(filp_writable)
+			d->n_write_lock--;
+		else
+			d->n_read_lock--;
+		filp->f_flags &= ~F_OSPRD_LOCKED;
+		wake_up_all(&d->blockq);
+		spin_unlock(&d->mutex);
 
 	} else
 		r = -ENOTTY; /* unknown command */
