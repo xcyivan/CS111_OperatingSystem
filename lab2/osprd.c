@@ -311,7 +311,7 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 				filp->f_flags |= F_OSPRD_LOCKED;
 				d->n_write_lock++;
 			}
-			spin_unlcok(&d->mutex);
+			spin_unlock(&d->mutex);
 		} 
 		else
 		{
