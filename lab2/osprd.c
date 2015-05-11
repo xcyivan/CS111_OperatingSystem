@@ -34,7 +34,7 @@
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_DESCRIPTION("CS 111 RAM Disk");
 // EXERCISE: Pass your names into the kernel as the module's authors.
-MODULE_AUTHOR("Skeletor");
+MODULE_AUTHOR("Shiyuan Yang; Cheyun Xia");
 
 #define OSPRD_MAJOR	222
 
@@ -43,6 +43,12 @@ MODULE_AUTHOR("Skeletor");
  * as an argument to insmod: "insmod osprd.ko nsectors=4096" */
 static int nsectors = 32;
 module_param(nsectors, int, 0);
+
+struct pid_list{
+	pid_t m_pid;
+	struct *pid_list m_next;
+};
+typedef struct pid_list* pid_list_t;
 
 
 /* The internal representation of our device. */
@@ -64,6 +70,12 @@ typedef struct osprd_info {
 
 	/* HINT: You may want to add additional fields to help
 	         in detecting deadlock. */
+
+	int n_write_lock;
+	int n_read_lock;
+
+	pid_t write_lock_pid;
+	pit_list_t read_lock_pid_list;
 
 	// The following elements are used internally; you don't need
 	// to understand them.
@@ -170,6 +182,37 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 		// Your code here.
 
 		// This line avoids compiler warnings; you may remove it.
+		if(filp->f_flags & F_OSPRD_LOCKED){
+			osp_spin_lock(d->mutex);////////&?
+			if(filp_writable){
+				d->n_write_lock--;
+				d->write_lock_pid=-1;
+			}
+			else{
+				//the read_pid_list is guranteed to have at least 1 element
+				d->n_read_lock--;
+				pid_list_t fast = d->read_lock_pid_list;
+				pid_list_t slow = d->read_lock_pid_list;
+				while(fast){
+					if(fast->pid == current->pid){
+						break;
+					}
+					slow = fast;
+					fast = fast->next;
+				}
+				if(slow==NULL){//if current pid is at the head
+					read_lock_pid_list = read_lock_pid_list->next;
+				}
+				else{
+					slow->next = fast->next;
+				}
+
+			}
+			wake_up_all(d->blockq);////////&?
+			filp->f_flags &= ~(F_OSPRD_LOCKED);
+			osp_spin_unlock(d->mutex);////////&?
+		}
+
 		(void) filp_writable, (void) d;
 
 	}
