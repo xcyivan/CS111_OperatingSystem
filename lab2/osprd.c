@@ -77,6 +77,9 @@ typedef struct osprd_info {
 	pid_t write_lock_pid;
 	pid_list_t read_lock_pid_list;
 
+	int* invalid_pid_list;
+	int n_invalid_pid;
+
 	// The following elements are used internally; you don't need
 	// to understand them.
 	struct request_queue *queue;    // The device request queue.
@@ -234,9 +237,9 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
  * osprd_ioctl(inode, filp, cmd, arg)
  *   Called to perform an ioctl on the named file.
  */
-int osprd_ioctl(struct inode *inode, struct file *filp,
-		unsigned int cmd, unsigned long arg)
-{
+ int osprd_ioctl(struct inode *inode, struct file *filp,
+ 	unsigned int cmd, unsigned long arg)
+ {
 	osprd_info_t *d = file2osprd(filp);	// device info
 	int r = 0;			// return value: initially 0
 
@@ -286,9 +289,106 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		// be protected by a spinlock; which ones?)
 
 		// Your code here (instead of the next two lines).
-		eprintk("Attempting to acquire\n");
-		r = -ENOTTY;
+		// eprintk("Attempting to acquire\n");
+		// r = -ENOTTY;
+		int my_ticket;
+		int i;
+		osp_spin_lock(&d->mutex);
+		if(current->pid == d->write_lock_pid){// deadlock for RAW, WAW
+			osp_spin_unlock(&d->mutex);
+			r = -EDEADLK;
+			return r;
+		}
+		
+		my_ticket = d->ticket_head++;
+		osp_spin_unlock(&d->mutex);
 
+		if(filp_writable){
+			pid_list_t temp;
+			int CONDITION;
+			osp_spin_lock(&d->mutex);
+			temp = d->read_lock_pid_list;
+			while(temp){//deadlock for WAR
+				if(temp->m_pid==current->pid){
+					osp_spin_unlock(&d->mutex);
+					r = -EDEADLK;
+					return r;
+				}
+				else
+					temp = temp->m_next;
+			}
+			CONDITION = d->n_read_lock==0 && d->n_write_lock==0 && my_ticket==d->ticket_tail;
+			osp_spin_unlock(&d->mutex);
+			while(!CONDITION){
+				r = wait_event_interruptible(d->blockq,1);
+				if(r == -ERESTARTSYS){
+					osp_spin_lock(&d->mutex);
+					if(d->ticket_tail==my_ticket)
+						d->ticket_tail++;
+					d->invalid_pid_list[d->n_invalid_pid++] = my_ticket;
+					osp_spin_unlock(&d->mutex);
+					return r;
+				}
+				schedule();
+				//osp_spin_lock(&d->mutex);
+				CONDITION = d->n_read_lock==0 && d->n_write_lock==0 && my_ticket==d->ticket_tail;
+			}
+			osp_spin_lock(&d->mutex);
+			filp->f_flags |= F_OSPRD_LOCKED;
+			d->n_write_lock++;
+			d->write_lock_pid = current->pid;
+			osp_spin_unlock(&d->mutex);
+		}
+		else{
+			int CONDITION;
+			pid_list_t fast;
+			pid_list_t slow;
+			osp_spin_lock(&d->mutex);
+			CONDITION = d->n_write_lock==0 && my_ticket==d->ticket_tail;
+			osp_spin_unlock(&d->mutex);
+			while(!CONDITION){
+				r = wait_event_interruptible(d->blockq,1);
+				if(r == -ERESTARTSYS){
+					osp_spin_lock(&d->mutex);
+					if(d->ticket_tail==my_ticket)
+						d->ticket_tail++;
+					d->invalid_pid_list[d->n_invalid_pid++] = my_ticket;
+					osp_spin_unlock(&d->mutex);
+					return r;
+				}
+				schedule();
+				//osp_spin_lock(&d->mutex);
+				CONDITION = d->n_write_lock==0 && my_ticket==d->ticket_tail;
+			}
+			osp_spin_lock(&d->mutex);
+			filp->f_flags |= F_OSPRD_LOCKED;
+			d->n_read_lock++;
+			fast = d->read_lock_pid_list;
+			slow = d->read_lock_pid_list;
+			while(fast){
+				slow = fast;
+				fast = fast->m_next;
+			}
+			if(slow==NULL){
+				d->read_lock_pid_list = kmalloc(sizeof(pid_list_t),GFP_ATOMIC);
+				d->read_lock_pid_list->m_pid = current->pid;
+				d->read_lock_pid_list->m_next = NULL;
+			}
+			else{
+				slow->m_next = kmalloc(sizeof(pid_list_t),GFP_ATOMIC);
+				slow->m_next->m_pid = current->pid;
+				slow->m_next->m_next = NULL;
+			}
+			osp_spin_unlock(&d->mutex);
+		}
+		osp_spin_lock(&d->mutex);
+		d->ticket_tail++;
+		for(i=0; i<d->n_invalid_pid; i++){
+			if(d->invalid_pid_list[i]==d->ticket_tail)
+				d->ticket_tail++;
+		}
+		r=0;
+		osp_spin_unlock(&d->mutex);
 	} else if (cmd == OSPRDIOCTRYACQUIRE) {
 
 		// EXERCISE: ATTEMPT to lock the ramdisk.
@@ -325,7 +425,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 			}
 			spin_unlock(&d->mutex);
 		}
-
 	} else if (cmd == OSPRDIOCRELEASE) {
 
 		// EXERCISE: Unlock the ramdisk.
@@ -348,7 +447,6 @@ int osprd_ioctl(struct inode *inode, struct file *filp,
 		filp->f_flags &= ~F_OSPRD_LOCKED;
 		wake_up_all(&d->blockq);
 		spin_unlock(&d->mutex);
-
 	} else
 		r = -ENOTTY; /* unknown command */
 	return r;
@@ -366,6 +464,8 @@ static void osprd_setup(osprd_info_t *d)
 	/* Add code here if you add fields to osprd_info_t. */
 	d->n_write_lock = 0;
 	d->n_read_lock  = 0;
+	d->n_invalid_pid = 0;
+	d->invalid_pid_list = (int*)kmalloc(sizeof(int)*1024, GFP_ATOMIC);
 }	
 
 
