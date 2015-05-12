@@ -201,20 +201,27 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 				d->n_read_lock--;
 				fast = d->read_lock_pid_list;
 				slow = d->read_lock_pid_list;
-				while(fast){
-					if(fast->m_pid == current->pid){
-						break;
-					}
-					slow = fast;
-					fast = fast->m_next;
-				}
-				if(slow==NULL){//if current pid is at the head
-					d->read_lock_pid_list = d->read_lock_pid_list->m_next;
-				}
-				else{
-					slow->m_next = fast->m_next;
-				}
 
+				while(fast != NULL)
+			    {
+					if(fast->m_pid == current->pid)
+			        {
+					   if(slow == NULL)
+					   {
+						   d->read_lock_pid_list = fast->m_next;
+					   }
+					   else 
+					   {
+						   slow->m_next = fast->m_next;
+						   break;
+					   }
+					}
+					else
+					{
+					  slow = fast;
+					  fast = fast->m_next;
+					}
+			    }
 			}
 			wake_up_all(&d->blockq);////////&?
 			filp->f_flags &= ~(F_OSPRD_LOCKED);
@@ -317,8 +324,9 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 				else
 					temp = temp->m_next;
 			}
-			CONDITION = d->n_read_lock==0 && d->n_write_lock==0 && my_ticket==d->ticket_tail;
 			osp_spin_unlock(&d->mutex);
+
+			CONDITION = d->n_read_lock==0 && d->n_write_lock==0 && my_ticket==d->ticket_tail;
 			while(!CONDITION){
 				r = wait_event_interruptible(d->blockq,1);
 				if(r == -ERESTARTSYS){
@@ -343,9 +351,9 @@ static int osprd_close_last(struct inode *inode, struct file *filp)
 			int CONDITION;
 			pid_list_t fast;
 			pid_list_t slow;
-			osp_spin_lock(&d->mutex);
+			// osp_spin_lock(&d->mutex);
 			CONDITION = d->n_write_lock==0 && my_ticket==d->ticket_tail;
-			osp_spin_unlock(&d->mutex);
+			// osp_spin_unlock(&d->mutex);
 			while(!CONDITION){
 				r = wait_event_interruptible(d->blockq,1);
 				if(r == -ERESTARTSYS){
