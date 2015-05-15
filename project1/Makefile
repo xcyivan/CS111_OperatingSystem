@@ -23,7 +23,7 @@ TIMETRASH_SOURCES = \
 TIMETRASH_OBJECTS = $(subst .c,.o,$(TIMETRASH_SOURCES))
 
 DIST_SOURCES = \
-  $(TIMETRASH_SOURCES) stack.h alloc.h command.h command-internals.h Makefile \
+  $(TIMETRASH_SOURCES) stack.h Design_Problem_for_Lab1c.doc alloc.h command.h command-internals.h Makefile \
   $(TESTS) check-dist README
 
 timetrash: $(TIMETRASH_OBJECTS)

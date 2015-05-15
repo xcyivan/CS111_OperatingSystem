@@ -216,8 +216,9 @@ void execute_no_dependencies(queue_t queue)
     cur = cur->next;
     pid_t pid;
 
-    sem_wait (sem); 
+    
     while ((*p) <= 0);
+    sem_wait (sem); 
     (*p)--;
     pid = fork ();
     sem_post(sem);
@@ -268,8 +269,8 @@ void execute_dependencies(queue_t queue)
     }
     pid_t pid;
 
-    sem_wait (sem); 
     while ((*p) <= 0);
+    sem_wait (sem); 
     (*p)--;
     pid = fork ();
     sem_post(sem);
