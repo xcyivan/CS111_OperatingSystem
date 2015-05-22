@@ -1,0 +1,93 @@
+Name: Cheyun Xia
+UCLA ID: 504422348
+
+Collaborators:
+N.A.
+-------------------------------------------------------------------------------
+
+Response to Exercise 1:
+
+The name of the scheduling algorithm is: Round Robin
+
+
+(Exercise 2 is a coding exercise)
+	the codes are in line 211 - 219 in schedos-kern.c
+
+
+Response to Exercise 3:
+
+Average turnaround time for scheduling_algorithm 0: 
+	((320*4-3) + (320*4-2) + (320*4-1))/4 = 958.5
+Average turnaround time for scheduling_algorithm 1:
+	(320*1 + 320*2 + 320*3 + 320*4)/4 = 800
+Average wait time for scheduling_algorithm 0:
+	(0 + 1 + 2 + 3)*320/4 = 480
+Average wait time for scheduling_algorithm 1:
+	(0 + 320 + 320*2 + 320*3)/4 = 480
+
+Exercise 4:
+
+Did you complete Exercise 4A, Exercise 4B, or both for extra credit?
+4A
+	(1) I use INT_SYS_USER1 to label the interrupt of setting a process's priority, it already exists in schedos.h line 17;
+	(2) Add a data member in process descriptor in schedos-kern.h line 33:
+			int p_priority;
+	(3) Add a interrupt system call in schedos-app.h line 64-69 to triger the interrupt:
+			static inline void sys_set_priority(int priority){
+				asm volatile("int %0\n"
+					::"i"(INT_SYS_USER2),
+					  "a"(priority)
+					:"cc", "memory");
+				}
+
+	(4) In schedos-kern.c line 160, handle this interrupt:
+			current->p_priority = reg->reg_eax;
+	(5) Initialize the priority of each process in start() function in schedos-kern.c to different values for test;
+	(6) Add the scheduling_algorithm 2 in line 220 - line 250 in schedule function in schedos-kern.c:
+			else if(scheduling_algorithm == 2){
+				while(1){	
+					//int notfound = (pid+1)%NPROCS;
+					int found = 0;
+					int min = proc_array[pid].p_priority;
+					int i;
+					for(i=0; i<NPROCS; i++){//try to find a runnable process with higher priority
+						if(proc_array[i].p_state == P_RUNNABLE && proc_array[i].p_priority<min){
+						min = proc_array[i].p_priority;
+						found = i;
+						}
+					}
+					if(found)//if found, run it
+						run(&proc_array[found]);
+					else{//if not found, first try to alternate among those with same priority
+						for(i=1; i<=NPROCS; i++){
+							int j=(pid+i) % NPROCS;
+							if(proc_array[j].p_state == P_RUNNABLE && proc_array[j].p_priority==min)
+								run(&proc_array[j]);
+						}
+						//if no process has greater or equal priority, just run the next process if it's runnable,
+						//otherwise switch to next process and repeat the operation above
+						if(proc_array[(pid+1) % NPROCS].p_state == P_RUNNABLE)
+							run(&proc_array[(pid+1) % NPROCS]);
+						else
+							pid = (pid+1) % NPROCS;
+					}
+				}
+			}
+
+
+Exercise 5:
+	During process 4, because when the repeating pattern is broken for the first time, it writes "...1231..." which means process 4 doesn't print '4'. This is because when process 4 is in control, the clock interrupt happens before it print the character '4' then context switch to process 1.
+
+(Exercise 6 is a coding exercise)
+	(1) I use the atomic_swap function in x86sync.h to ensure the atomicity;
+	(2) Then modify the code in critical section in schedos-1.c line 27-32;
+	(3) extern declare a virable lock used to lock the critical section in schedos.h line 24;
+	(4) Assign a memory location for the lock in schedos-symbols.ld line 4;
+	(5) Initialize the lock at schedos-kern.c line 112
+
+
+Anything else you'd like us to know:
+
+
+
+Extra credit exercises:
