@@ -11,14 +11,14 @@
 # information you'd like us to know, please add it at the end of the file.
 
 # Partner 1
-Name: 
-Student ID: 
-Email: 
+Name: Shiyuan Yang
+Student ID: 804397286
+Email: ysyyork@gmail.com	
 
 # Partner 2 (if you're working in a team)
-Name: 
-Student ID: 
-Email: 
+Name: Cheyun Xia
+Student ID: 504422348
+Email: xiacheyunivan@ucla.edu
 
 # Extra credit problems
 #Extra credit problem: none
