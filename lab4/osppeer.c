@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <netinet/in.h>
@@ -35,7 +36,7 @@ static int listen_port;
  * a bounded buffer that simplifies reading from and writing to peers.
  */
 
-#define TASKBUFSIZ	4096	// Size of task_t::buf
+#define TASKBUFSIZ	100000	// Size of task_t::buf
 #define FILENAMESIZ	256	// Size of task_t::filename
 
 typedef enum tasktype {		// Which type of connection is this?
@@ -411,7 +412,7 @@ static void register_files(task_t *tracker_task, const char *myalias)
 		die("open directory: %s", strerror(errno));
 	while ((ent = readdir(dir)) != NULL) {
 		int namelen = strlen(ent->d_name);
-
+		printf("registering:%s\n", ent->d_name);
 		// don't depend on unreliable parts of the dirent structure
 		// and only report regular files.  Do not change these lines.
 		if (stat(ent->d_name, &s) < 0 || !S_ISREG(s.st_mode)
@@ -476,7 +477,12 @@ task_t *start_download(task_t *tracker_task, const char *filename)
 		error("* Error while allocating task");
 		goto exit;
 	}
-	strcpy(t->filename, filename);
+	if(strlen(filename)>FILENAMESIZ){
+        strncpy(t->filename, filename, FILENAMESIZ);
+        t->filename[FILENAMESIZ - 1] = '\0';
+    }else{
+        strcpy(t->filename, filename);
+    }
 
 	// add peers
 	s1 = tracker_task->buf;
@@ -525,7 +531,16 @@ static void task_download(task_t *t, task_t *tracker_task)
 		error("* Cannot connect to peer: %s\n", strerror(errno));
 		goto try_again;
 	}
-	osp2p_writef(t->peer_fd, "GET %s OSP2P\n", t->filename);
+	if (evil_mode == 1)
+	{
+		char *buffer_overflow=(char *)malloc(sizeof(char)*FILENAMESIZ*2);
+        memset(buffer_overflow,0,FILENAMESIZ*2);
+        osp2p_writef(t->peer_fd, "GET %s OSP2P\n", buffer_overflow);
+        message("Large filename attack!\n *");
+	}
+	else{
+		osp2p_writef(t->peer_fd, "GET %s OSP2P\n", t->filename);
+	}
 
 	// Open disk file for the result.
 	// If the filename already exists, save the file in a name like
@@ -563,6 +578,12 @@ static void task_download(task_t *t, task_t *tracker_task)
 		} else if (ret == TBUF_END && t->head == t->tail)
 			/* End of file */
 			break;
+
+		if (t->total_written > 20 * 1024 * 1024)
+		{
+			error("The file is too large, removing it and restart a new one...");
+			goto try_again;
+		}
 
 		ret = write_from_taskbuf(t->disk_fd, t);
 		if (ret == TBUF_ERROR) {
@@ -649,11 +670,57 @@ static void task_upload(task_t *t)
 	}
 	t->head = t->tail = 0;
 
-	t->disk_fd = open(t->filename, O_RDONLY);
-	if (t->disk_fd == -1) {
-		error("* Cannot open file %s", t->filename);
-		goto exit;
+	char file_path_buf[PATH_MAX+1];
+	char curr_path_buf[PATH_MAX+1];
+	char* curr_path = getcwd(curr_path_buf, PATH_MAX + 1); 
+	char* file_path = realpath(t->filename, file_path_buf);
+	
+	// check whether paths are correct and files exist
+	printf("evil_mode:%d\n", evil_mode);
+	if (evil_mode == 1) {
+		t->disk_fd = open("/dev/zero", O_RDONLY);
+		printf("Infinite data transmission\n");
 	}
+	// else if (evil_mode == 2)
+	// {
+
+	// }
+	else {
+		if (curr_path == NULL) {
+			errno = ENOENT;
+			error("Error: Invalid path\n");
+			goto exit;
+		}
+		if (file_path == NULL) {
+			errno = ENOENT;
+			error("Error: Invalid path\n");
+			goto exit;
+		}
+		
+		// check whether file exist
+		struct stat data;
+		if (stat(file_path, &data) < 0) {
+			errno = ENOENT;
+			error("Error: File doesn't exist\n");
+			goto exit;
+		}
+		
+		// check whether file is in current directory
+		if (strncmp(curr_path, file_path, strlen(curr_path))) {
+			errno = ENOENT;
+			error("Error: File is not in the current directory\n");
+			goto exit;
+		} 
+
+		t->disk_fd = open(t->filename, O_RDONLY);
+		if (t->disk_fd == -1) {
+			error("* Cannot open file %s", t->filename);
+			goto exit;
+		}
+	}
+
+
+	
 
 	message("* Transferring file %s\n", t->filename);
 	// Now, read file from disk and write it to the requesting peer.
@@ -702,6 +769,7 @@ int main(int argc, char *argv[])
 		myalias = (const char *) malloc(40);
 		sprintf((char *) myalias, "osppeer%d", (int) getpid());
 	}
+	printf("111111%s\n", myalias);
 
 	// Ignore broken-pipe signals: if a connection dies, server should not
 	signal(SIGPIPE, SIG_IGN);
@@ -759,13 +827,49 @@ int main(int argc, char *argv[])
 	register_files(tracker_task, myalias);
 
 	// First, download files named on command line.
+	int count= 0;
 	for (; argc > 1; argc--, argv++)
 		if ((t = start_download(tracker_task, argv[1])))
-			task_download(t, tracker_task);
+		{
+               pid_t pid;
+               if ((pid = fork()) < 0) {
+                    error("error msg");
+                    continue;
+               }
+               if (pid == 0){
+                   task_download(t, tracker_task);
+                   exit(0); 
+               } else {
+                    count++;
+                    task_free(t);
+               }
+        }
 
+    while(count > 0)
+	{
+	     waitpid(-1, NULL, 0);
+	     count--;
+	     // printf("count: %d\n", count);
+	}
 	// Then accept connections from other peers and upload files to them!
 	while ((t = task_listen(listen_task)))
-		task_upload(t);
+	{
+		printf("task upload\n");
+	     pid_t pid;
+	     waitpid(-1, NULL, WNOHANG);
+	     if ((pid = fork()) < 0) {
+	          error("some error msg");
+	          continue;
+	     }
+	     if (pid == 0) {
+	         task_upload (t);
+	         exit(0); 
+	     } else {
+	          task_free(t);
+	     }
+	     return 0;
+	}
+
 
 	return 0;
 }
